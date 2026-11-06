@@ -77,9 +77,44 @@ Ejemplo de error de validación:
 | `X-Correlation-Id` | Petición y respuesta | Opcional en la petición; solo se acepta `[A-Za-z0-9-]{1,64}`. Siempre está en la respuesta. |
 | `X-XSRF-TOKEN` | Petición | Token CSRF para las operaciones que modifican datos (Etapa 2). |
 
-## Autenticación (Etapa 2)
+## Autenticación
 
-La sesión está en el servidor y se identifica con una cookie `HttpOnly; Secure; SameSite=Lax`. Las operaciones que modifican datos (`POST`, `PUT`, `PATCH`, `DELETE`) requieren el token CSRF. Ver [ADR-0004](../decisions/0004-autenticacion-por-sesion.md).
+La sesión está en el servidor y se identifica con la cookie `SESSION` (`HttpOnly; Secure; SameSite=Lax`).
+
+**CSRF:**
+
+- Cada respuesta incluye la cookie `XSRF-TOKEN`, que el frontend puede leer.
+- Las operaciones que modifican datos (`POST`, `PUT`, `PATCH`, `DELETE`), incluido el inicio de sesión, deben enviar su valor en la cabecera `X-XSRF-TOKEN`.
+- Si falta o no es válido, la respuesta es `403 csrf_invalid`; el cliente puede reintentar con el token de la última respuesta.
+
+Ver [ADR-0004](../decisions/0004-autenticacion-por-sesion.md) y [ADR-0011](../decisions/0011-autenticacion-bloqueo-y-contrasenas.md).
+
+| Método | Ruta | Acceso | Respuesta |
+|---|---|---|---|
+| GET | `/api/v1/auth/registration` | Público | `{ "enabled": boolean }` |
+| POST | `/api/v1/auth/register` | Público, si `enabled` | 201 con el perfil; inicia sesión |
+| POST | `/api/v1/auth/login` | Público | 200 con el perfil; inicia sesión |
+| POST | `/api/v1/auth/logout` | Con o sin sesión | 204 |
+| GET | `/api/v1/me` | Con sesión | Perfil (401 si no hay sesión) |
+| PATCH | `/api/v1/me` | Con sesión | Actualización parcial: `displayName` y/o `timeZone` |
+| PUT | `/api/v1/me/password` | Con sesión | 204; cierra las demás sesiones |
+
+Códigos de identity:
+
+| Estado | `code` | Cuándo |
+|---|---|---|
+| 401 | `identity.invalid_credentials` | Correo o contraseña incorrectos (mismo error en ambos casos) |
+| 429 | `identity.too_many_attempts` | Cuenta bloqueada 15 minutos tras 5 intentos fallidos |
+| 429 | `too_many_requests` | Límite por IP de nginx en el inicio de sesión y el registro |
+| 403 | `identity.registration_closed` | El registro está cerrado |
+| 409 | `identity.email_already_registered` | El correo ya tiene una cuenta |
+| 422 | `identity.email_invalid`, `identity.password_policy`, `identity.display_name_invalid`, `identity.time_zone_invalid`, `identity.current_password_incorrect` | Reglas de la cuenta |
+
+## Documento OpenAPI y tipos del frontend
+
+- El frontend genera sus tipos con `npm run api:types` a partir de `/v3/api-docs`, que solo está disponible en el perfil `local`.
+- **Campos obligatorios en las respuestas:** como springdoc no los deduce, los DTO de respuesta los declaran con `@Schema(requiredProperties = {...})`. Si no se declaran, los tipos generados quedan opcionales.
+- **El propietario no se documenta:** el parámetro `@CurrentUser UserId` se excluye del documento, porque sale de la sesión y no es un parámetro de la petición.
 
 ## Paginación
 

@@ -3,7 +3,7 @@
 | Módulo | Responsabilidad | Puede depender de | Esquema BD | Estado |
 |---|---|---|---|---|
 | `shared` | Núcleo compartido mínimo | — | — | Creado (Etapa 1) |
-| `identity` | Usuarios, credenciales, sesión y seguridad | `shared`, `notifications` (api) | `identity` | Seguridad base (Etapa 1). Usuarios y sesión en la Etapa 2. |
+| `identity` | Usuarios, credenciales, sesión y seguridad | `shared`, `notifications` (api) | `identity` | Completo (Etapa 2) |
 | `finance` | Dinero: cuentas, movimientos, tarjetas, cuotas, préstamos y dashboard | `shared`, `identity` (api) | `finance` | Etapa 3 |
 | `notifications` | Entrega de comunicaciones (correo con Resend) | `shared` | `notifications` | Etapa 5 (o Etapa 2, pendiente) |
 | `reports` | Reportes consolidados y programados, exportaciones | `shared`, `finance` (api), `notifications` (api) | `reports` | Etapa 5 |
@@ -24,15 +24,38 @@ Contiene solo lo que realmente comparten varios módulos:
 - `infrastructure.web`: `GlobalExceptionHandler`, `CorrelationIdFilter` y CORS (`CorsConfig`, `CorsProperties`).
 - `infrastructure.openapi`: metadatos del documento OpenAPI.
 
-Planeado: los objetos de valor `UserId` (Etapa 2) y `Money` (Etapa 3) cuando los use el primer caso de uso.
+- `domain` también incluye:
+  - `UserId`, el identificador del propietario que usan todos los módulos;
+  - `ConflictException`, que responde 409.
+- `infrastructure.web.ApiProblems` construye los errores con el formato común; también la usan los manejadores de cada módulo.
+- `infrastructure.config.ClockConfig` provee el `Clock` en UTC.
+
+Planeado: el objeto de valor `Money` (Etapa 3), cuando lo use el primer caso de uso.
 
 **Riesgo a vigilar:** que `shared` se convierta en un cajón de utilidades. Antes de agregar algo, comprueba que lo usan al menos dos módulos.
 
-## identity
+## identity (Etapa 2)
 
-- **Hoy:** `SecurityConfig` deniega todo salvo las rutas públicas y delega los errores 401/403 al manejador global.
-- **Etapa 2:** registro, inicio y cierre de sesión con Spring Session JDBC, CSRF para la SPA, perfil, cambio de contraseña y límite de intentos de login.
-- **API publicada (Etapa 2):** `@CurrentUser`, que resuelve el `UserId` de la sesión para los controladores de otros módulos, y el evento `UserDeleted`.
+- **Dominio:**
+  - `User`: bloqueo por intentos fallidos, nombre y zona horaria.
+  - `Email`: normalizado.
+  - `PasswordPolicy`: de 12 a 64 caracteres y 72 bytes como máximo.
+  - Excepciones con código `identity.*`.
+- **Casos de uso:** `RegisterUser`, `AuthenticateUser`, `GetProfile`, `UpdateProfile` y `ChangePassword`.
+- **Puertos de salida y sus adaptadores:**
+  - `UserRepository`: JPA sobre `identity.users`.
+  - `PasswordHasher`: `DelegatingPasswordEncoder` (BCrypt).
+  - `SessionTerminator`: índice por usuario de Spring Session.
+  - `RegistrationPolicy`: `REGISTRATION_ENABLED`.
+- **Infraestructura:**
+  - `SecurityConfig`: sesión, CSRF para SPA y logout.
+  - `SessionLogin`: abre la sesión tras autenticar.
+  - `AuthController` y `ProfileController`.
+  - `IdentityExceptionHandler`: traduce a 401, 403 y 429.
+- **API publicada (`identity.api`):** `@CurrentUser`, que resuelve el `UserId` de la sesión para los controladores de cualquier módulo. Los otros módulos declaran `allowedDependencies = "identity :: api"`.
+- **Planeado:** el evento `UserDeleted`, cuando exista la eliminación de cuentas (D15).
+
+Ver [ADR-0011](../decisions/0011-autenticacion-bloqueo-y-contrasenas.md) y [ADR-0012](../decisions/0012-registro-cerrado-y-primera-cuenta.md).
 
 ## finance (Etapa 3)
 

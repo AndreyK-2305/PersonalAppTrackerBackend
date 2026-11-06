@@ -3,12 +3,9 @@ package com.personaltracker;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.personaltracker.shared.infrastructure.web.CorrelationIdFilter;
-import com.personaltracker.support.TestcontainersConfiguration;
+import com.personaltracker.support.IntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureRestTestClient;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
@@ -17,9 +14,7 @@ import org.springframework.test.web.servlet.client.RestTestClient;
  * Arranca la aplicación completa contra PostgreSQL real y verifica la base técnica: migraciones,
  * health check, seguridad por defecto, CORS y documentación deshabilitada fuera del perfil local.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@AutoConfigureRestTestClient
-@Import(TestcontainersConfiguration.class)
+@IntegrationTest
 class ApplicationSmokeTests {
 
     @Autowired

@@ -28,3 +28,5 @@ Un ADR aceptado no se edita para cambiar la decisión. Se crea uno nuevo que lo 
 | [0008](0008-errores-problem-detail.md) | Formato de errores con ProblemDetail (RFC 9457) | Aceptada |
 | [0009](0009-dos-repositorios.md) | Backend y frontend en repositorios independientes | Aceptada |
 | [0010](0010-plataforma-base-y-dependencias.md) | Plataforma base, dependencias y CI | Aceptada |
+| [0011](0011-autenticacion-bloqueo-y-contrasenas.md) | Flujo de autenticación, bloqueo por intentos y política de contraseñas | Aceptada |
+| [0012](0012-registro-cerrado-y-primera-cuenta.md) | Registro cerrado y alta de la primera cuenta | Aceptada |

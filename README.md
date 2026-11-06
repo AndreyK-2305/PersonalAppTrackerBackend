@@ -55,6 +55,18 @@ Variables de entorno (ver `.env.example`):
 | `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD`, `DB_PORT` | Base de datos | `personal_tracker` / `personal_tracker` / `personal_tracker` / `5434` |
 | `BACKEND_PORT` | Puerto de la API en el host (perfil `local` y perfil `full` de Compose) | `8090` |
 | `FRONTEND_PORT` | Puerto del frontend (nginx) con el perfil `full` de Compose | `8091` |
+| `REGISTRATION_ENABLED` | Permite registrar cuentas nuevas | `false` |
+| `SESSION_TIMEOUT` | Cierre de sesión por inactividad | `60m` |
+
+### Crear la primera cuenta
+
+El registro está cerrado por defecto ([ADR-0012](docs/decisions/0012-registro-cerrado-y-primera-cuenta.md)). Para crear tu cuenta:
+
+1. Arranca el backend con `REGISTRATION_ENABLED=true` (en `.env` o como variable de entorno).
+2. Entra a `/registro` en el frontend y crea la cuenta. La sesión se inicia automáticamente.
+3. Vuelve a `REGISTRATION_ENABLED=false` y reinicia el backend.
+
+No hay recuperación de contraseña hasta la Etapa 5.
 | `CORS_ALLOWED_ORIGINS` | Orígenes permitidos, separados por comas | vacío (ninguno) |
 
 Nunca subas `.env` ni secretos al repositorio.
@@ -64,14 +76,14 @@ Nunca subas `.env` ni secretos al repositorio.
 ```text
 src/main/java/com/personaltracker/
 ├── PersonalTrackerApplication.java
-├── shared/          núcleo compartido: excepciones de dominio, manejo de errores, CORS, OpenAPI
-└── identity/        seguridad (Etapa 1); usuarios y sesión (Etapa 2)
+├── shared/          núcleo compartido: UserId, excepciones de dominio, errores, CORS, OpenAPI, reloj
+└── identity/        cuentas, inicio de sesión, perfil, contraseñas; publica @CurrentUser (identity.api)
 src/main/resources/
 ├── application.yml, application-local.yml, application-prod.yml
 └── db/migration/    migraciones Flyway: V{n}__{modulo}_{descripcion}.sql
 src/test/java/com/personaltracker/
 ├── architecture/    ModularityTests (Spring Modulith) y HexagonalArchitectureTests (ArchUnit)
-└── support/         Testcontainers
+└── support/         @IntegrationTest, Testcontainers, BrowserSession (cookies + CSRF) y TestAccounts
 docs/
 ├── architecture/    visión general, módulos y glosario de dominio
 ├── api/             convenciones de la API
@@ -89,6 +101,12 @@ Cada módulo sigue la estructura `domain/`, `application/` (`usecase/`, `port/ou
   - La aplicación completa corre contra PostgreSQL real y se comprueban migraciones, health check, seguridad por defecto, CORS y documentación deshabilitada.
 - **Web:**
   - Formato de errores (RFC 9457) y filtro de correlación.
+- **Identity:**
+  - Dominio y casos de uso con dobles en memoria.
+  - Adaptador de persistencia.
+  - Flujos HTTP completos: login y logout con cookie segura, CSRF obligatorio, mismo error ante credenciales inválidas, bloqueo tras 5 intentos, perfil, cambio de contraseña que cierra las demás sesiones, y registro cerrado o abierto.
+
+Usa `@IntegrationTest` en toda prueba de integración nueva, para que Spring reutilice el contexto y el contenedor de PostgreSQL entre clases.
 
 `./mvnw verify` también genera los diagramas de módulos en `target/spring-modulith-docs/`.
 

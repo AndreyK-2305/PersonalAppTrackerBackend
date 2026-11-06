@@ -33,6 +33,8 @@ services:
       DB_USERNAME: ${DB_USERNAME:-personal_tracker}
       DB_PASSWORD: ${DB_PASSWORD:-personal_tracker}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      REGISTRATION_ENABLED: ${REGISTRATION_ENABLED:-false}
+      SESSION_TIMEOUT: ${SESSION_TIMEOUT:-60m}
     ports:
       - "127.0.0.1:${BACKEND_PORT:-8090}:8080"
     depends_on:
@@ -43,7 +45,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
-      start_period: 30s
+      # Margen amplio: con pocos recursos asignados a Docker, el arranque puede tardar minutos.
+      start_period: 180s
 
   # Requiere el repositorio del frontend clonado como carpeta hermana (../frontend).
   frontend:

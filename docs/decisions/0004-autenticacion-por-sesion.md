@@ -1,6 +1,6 @@
 # ADR-0004: Autenticación por sesión en el servidor
 
-- Estado: Aceptada (se implementa en la Etapa 2)
+- Estado: Aceptada (implementada en la Etapa 2; detalle en [ADR-0011](0011-autenticacion-bloqueo-y-contrasenas.md))
 - Fecha: 2026-11-06
 
 ## Contexto

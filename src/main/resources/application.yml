@@ -14,10 +14,26 @@ spring:
       ddl-auto: validate
   flyway:
     locations: classpath:db/migration
+  session:
+    # Cierre por inactividad (D13). Las tablas las crea Flyway (V3).
+    timeout: ${SESSION_TIMEOUT:60m}
+    jdbc:
+      table-name: identity.spring_session
+      initialize-schema: never
   web:
     # Mensajes de validación en español, independientes del navegador.
     locale: es_CO
     locale-resolver: fixed
+
+server:
+  servlet:
+    session:
+      # Cookie de sesión de Spring Session (ADR-0004). Secure también aplica en localhost,
+      # que los navegadores tratan como origen seguro.
+      cookie:
+        http-only: true
+        secure: true
+        same-site: lax
 
 management:
   endpoints:
@@ -40,6 +56,9 @@ springdoc:
 app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+  identity:
+    # Registro cerrado por defecto (D11). Para crear la primera cuenta, ver ADR-0012.
+    registration-enabled: ${REGISTRATION_ENABLED:false}
 
 logging:
   pattern:
