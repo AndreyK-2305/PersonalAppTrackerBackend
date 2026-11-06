@@ -36,7 +36,7 @@ Los puertos locales son **5434** (PostgreSQL) y **8090** (API), y no los estánd
 | `./mvnw verify` | Compila y ejecuta todas las pruebas: unitarias, de arquitectura e integración. Requiere Docker. |
 | `./mvnw spring-boot:run -Dspring-boot.run.profiles=local` | Ejecuta la API en el puerto 8090. |
 | `docker compose up -d` | Levanta solo PostgreSQL para desarrollo. |
-| `docker compose --profile full up -d --build` | Levanta PostgreSQL y el backend en contenedores (perfil `prod`). |
+| `docker compose --profile full up -d --build --wait` | Levanta PostgreSQL, el backend (perfil `prod`) y el frontend en contenedores; la aplicación queda en http://localhost:8091. Requiere el repositorio del frontend clonado en `../frontend`. |
 | `docker compose down` | Detiene los contenedores. Agrega `-v` para borrar también los datos locales. |
 
 ## Perfiles y configuración
@@ -54,6 +54,7 @@ Variables de entorno (ver `.env.example`):
 | `DB_URL` | URL JDBC completa | `jdbc:postgresql://localhost:${DB_PORT}/${DB_NAME}` |
 | `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD`, `DB_PORT` | Base de datos | `personal_tracker` / `personal_tracker` / `personal_tracker` / `5434` |
 | `BACKEND_PORT` | Puerto de la API en el host (perfil `local` y perfil `full` de Compose) | `8090` |
+| `FRONTEND_PORT` | Puerto del frontend (nginx) con el perfil `full` de Compose | `8091` |
 | `CORS_ALLOWED_ORIGINS` | Orígenes permitidos, separados por comas | vacío (ninguno) |
 
 Nunca subas `.env` ni secretos al repositorio.

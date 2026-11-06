@@ -1,9 +1,9 @@
 # Uso:
 #   docker compose up -d                      solo PostgreSQL, para desarrollo local
-#   docker compose --profile full up --build  PostgreSQL + backend en contenedores
+#   docker compose --profile full up --build  PostgreSQL + backend + frontend (http://localhost:8091)
 # Las variables se leen de .env (ver .env.example); los valores por defecto son solo para desarrollo.
-# Puertos en el host: PostgreSQL 5434 y backend 8090, para no chocar con otros proyectos locales
-# que usan 5432/8080.
+# Puertos en el host: PostgreSQL 5434, backend 8090 y frontend 8091, para no chocar con otros
+# proyectos locales que usan 5432/8080.
 name: personal-tracker
 
 services:
@@ -44,6 +44,23 @@ services:
       timeout: 5s
       retries: 12
       start_period: 30s
+
+  # Requiere el repositorio del frontend clonado como carpeta hermana (../frontend).
+  frontend:
+    profiles: [full]
+    build: ../frontend
+    environment:
+      BACKEND_URL: http://backend:8080
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-8091}:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
 
 volumes:
   postgres-data:
