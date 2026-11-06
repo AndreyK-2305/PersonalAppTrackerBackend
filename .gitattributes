@@ -1,0 +1,12 @@
+# Normaliza finales de línea: LF en el repositorio y en el árbol de trabajo
+# (evita que mvnw y los scripts fallen dentro de contenedores Linux).
+* text=auto eol=lf
+
+# Scripts de Windows
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Binarios
+*.jar binary
+*.png binary
+*.jpg binary

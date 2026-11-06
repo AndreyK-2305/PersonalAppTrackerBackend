@@ -1,0 +1,25 @@
+# Desarrollo local. Los valores por defecto coinciden con el contenedor postgres de
+# docker-compose.yml y solo sirven para desarrollo; se pueden sobrescribir con variables de entorno.
+server:
+  port: ${BACKEND_PORT:8090}
+
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:${DB_PORT:5434}/${DB_NAME:personal_tracker}}
+    username: ${DB_USERNAME:personal_tracker}
+    password: ${DB_PASSWORD:personal_tracker}
+
+management:
+  endpoint:
+    health:
+      show-details: always
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
+logging:
+  level:
+    com.personaltracker: debug

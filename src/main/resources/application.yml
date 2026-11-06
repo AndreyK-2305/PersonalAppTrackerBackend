@@ -1,0 +1,46 @@
+# Configuración común a todos los perfiles.
+# Perfiles: "local" (desarrollo) y "prod". La conexión a la base de datos se define en cada perfil;
+# las pruebas la obtienen de Testcontainers.
+spring:
+  application:
+    name: personal-tracker
+  autoconfigure:
+    # Evita el usuario en memoria con contraseña generada: identity provee la autenticación real.
+    exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Flyway es dueño del esquema; Hibernate solo valida que las entidades coincidan.
+      ddl-auto: validate
+  flyway:
+    locations: classpath:db/migration
+  web:
+    # Mensajes de validación en español, independientes del navegador.
+    locale: es_CO
+    locale-resolver: fixed
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+springdoc:
+  # Deshabilitado salvo en el perfil local.
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+  paths-to-match: /api/**
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+
+logging:
+  pattern:
+    level: "%5p [%X{correlationId:-}]"

@@ -1,0 +1,15 @@
+# Producción. Todas las credenciales son obligatorias y llegan por variables de entorno.
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+server:
+  # La aplicación corre detrás de un proxy inverso (nginx) que termina TLS.
+  forward-headers-strategy: framework
+
+logging:
+  structured:
+    format:
+      console: ecs

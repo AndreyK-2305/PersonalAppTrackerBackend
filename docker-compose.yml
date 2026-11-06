@@ -1,0 +1,49 @@
+# Uso:
+#   docker compose up -d                      solo PostgreSQL, para desarrollo local
+#   docker compose --profile full up --build  PostgreSQL + backend en contenedores
+# Las variables se leen de .env (ver .env.example); los valores por defecto son solo para desarrollo.
+# Puertos en el host: PostgreSQL 5434 y backend 8090, para no chocar con otros proyectos locales
+# que usan 5432/8080.
+name: personal-tracker
+
+services:
+  postgres:
+    image: postgres:18.6-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-personal_tracker}
+      POSTGRES_USER: ${DB_USERNAME:-personal_tracker}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-personal_tracker}
+    ports:
+      - "127.0.0.1:${DB_PORT:-5434}:5432"
+    volumes:
+      # Desde PostgreSQL 18 la imagen oficial guarda los datos bajo /var/lib/postgresql.
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    profiles: [full]
+    build: .
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-personal_tracker}
+      DB_USERNAME: ${DB_USERNAME:-personal_tracker}
+      DB_PASSWORD: ${DB_PASSWORD:-personal_tracker}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-8090}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+volumes:
+  postgres-data:
