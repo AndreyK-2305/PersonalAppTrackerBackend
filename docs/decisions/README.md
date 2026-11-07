@@ -30,3 +30,7 @@ Un ADR aceptado no se edita para cambiar la decisión. Se crea uno nuevo que lo 
 | [0010](0010-plataforma-base-y-dependencias.md) | Plataforma base, dependencias y CI | Aceptada |
 | [0011](0011-autenticacion-bloqueo-y-contrasenas.md) | Flujo de autenticación, bloqueo por intentos y política de contraseñas | Aceptada |
 | [0012](0012-registro-cerrado-y-primera-cuenta.md) | Registro cerrado y alta de la primera cuenta | Aceptada |
+| [0013](0013-modelo-contable.md) | Modelo contable: libro de movimientos sobre productos propios | Aceptada |
+| [0014](0014-productos-otro-y-categorias.md) | Productos, producto "Otro" y categorías | Aceptada |
+| [0015](0015-edicion-y-borrado-de-movimientos.md) | Edición y borrado de movimientos | Aceptada |
+| [0016](0016-modulos-capture-y-messaging.md) | Módulos `capture` y `messaging`, y orden de etapas | Aceptada |

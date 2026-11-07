@@ -13,7 +13,7 @@ Los cálculos monetarios no pueden usar `float` ni `double`. La moneda predeterm
   - `BigDecimal` en Java y `NUMERIC(19,2)` en PostgreSQL.
   - Redondeo `HALF_UP`, aplicado de forma explícita en cada cálculo que lo requiera.
 - **Tasas de interés:** `BigDecimal`. Su precisión se define en la Etapa 4.
-- **Moneda:** forma parte del objeto de valor `Money` (código ISO 4217) desde el inicio. El MVP solo acepta COP y no hace conversiones (pendiente de confirmar, ver PROJECT_CONTEXT §16).
+- **Moneda:** forma parte del objeto de valor `Money` (código ISO 4217) desde el inicio. El MVP solo acepta COP y no hace conversiones (confirmado en [ADR-0013](0013-modelo-contable.md)).
 - **Montos en la API:** viajan como **cadenas decimales** (`"150000.00"`).
   - El frontend solo formatea montos (COP sin decimales en pantalla) y valida la captura.
   - Los cálculos monetarios (cuotas, intereses, totales y saldos) se hacen exclusivamente en el backend.

@@ -49,6 +49,10 @@ public final class BrowserSession {
         return send(client.put().uri(uri).contentType(MediaType.APPLICATION_JSON).body(body), true);
     }
 
+    public EntityExchangeResult<String> delete(String uri) {
+        return send(client.delete().uri(uri), true);
+    }
+
     /** Obtiene el token CSRF (como al cargar la SPA) e inicia sesión; falla si no responde 200. */
     public void login(String email, String password) {
         get("/api/v1/auth/registration");

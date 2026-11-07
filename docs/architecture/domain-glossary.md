@@ -14,12 +14,28 @@ El código, los identificadores y la API están en inglés; la interfaz y la doc
 
 | Español | Código | Definición |
 |---|---|---|
-| Cuenta | `Account` | Contenedor de dinero propio. Puede ser de activo (efectivo, banco) o de pasivo (tarjeta de crédito, préstamo). |
-| Movimiento | `Transaction` | Registro de dinero que entra, sale o se mueve entre cuentas. |
-| Ingreso | `Income` | Dinero que entra a una cuenta propia desde afuera. |
-| Gasto | `Expense` | Dinero que sale de una cuenta propia hacia afuera. Una compra con tarjeta es un gasto. |
-| Transferencia | `Transfer` | Movimiento entre cuentas propias. No es ingreso ni gasto; el pago de una tarjeta es una transferencia. |
-| Categoría / subcategoría | `Category` / `Subcategory` | Clasificación de ingresos y gastos. |
+| Producto (cuenta) | `Account` | Lugar donde está el dinero propio. Puede ser de activo (efectivo, cuenta, billetera) o de pasivo (tarjeta de crédito, préstamo). Jerarquía sellada ([ADR-0013](../decisions/0013-modelo-contable.md)). |
+| Tipo de producto | `AccountKind` | `CASH`, `SAVINGS`, `CHECKING`, `DIGITAL_WALLET`, `CREDIT_CARD` u `OTHER`. |
+| Efectivo | `CashAccount` | Dinero en mano. Su saldo inicial no puede ser negativo. |
+| Cuenta de ahorros, corriente o billetera digital | `DepositAccount` | Producto de depósito de una entidad (Bancolombia, Nequi, …). |
+| Producto "Otro" | `OtherAccount` | Producto de sistema que recibe lo que no se identifica. Sin saldo y fuera del patrimonio ([ADR-0014](../decisions/0014-productos-otro-y-categorias.md)). |
+| Entidad | `Institution` | Banco o empresa que emite el producto, tal como la escribe el usuario. |
+| Últimos 4 dígitos | `LastFourDigits` | Identifican una tarjeta o cuenta sin guardar el número completo. |
+| Saldo inicial | `openingBalance` | Saldo del producto antes del primer movimiento registrado. En una tarjeta es la deuda inicial con signo negativo. |
+| Saldo | `balance` | Saldo inicial más los efectos de los movimientos. Positivo en activos, negativo en deudas. |
+| Patrimonio | `netWorth` | Suma de los saldos de los productos que llevan saldo. |
+| Archivar | `archive` | Ocultar un producto o categoría con movimientos, sin borrarlo; se puede reactivar. |
+| Movimiento | `Transaction` | Registro de dinero que entra, sale o se mueve entre productos. Jerarquía sellada. |
+| Tipo de movimiento | `TransactionType` | `INCOME`, `EXPENSE`, `TRANSFER` o `ADJUSTMENT`. |
+| Ingreso | `Income` | Dinero que entra a un producto propio desde afuera. |
+| Gasto | `Expense` | Dinero que sale de un producto propio hacia afuera. Una compra con tarjeta es un gasto. |
+| Transferencia | `Transfer` | Movimiento entre productos propios. No es ingreso ni gasto; el pago de una tarjeta y depositar el propio efectivo son transferencias. |
+| Ajuste de saldo | `Adjustment` | Corrección para cuadrar un saldo con el banco. No es ingreso ni gasto. |
+| Comercio | `merchant` | Establecimiento o contraparte del movimiento, si se conoce. |
+| Medio de pago | `PaymentChannel` | Cómo se movió el dinero: tarjeta, transferencia, PSE, efectivo, consignación, retiro, débito automático u otro. Solo describe. |
+| Efecto en reportes | `ReportEffect` | Cómo cuenta un movimiento: ingreso, gasto o neutro. |
+| Categoría / subcategoría | `Category` | Clasificación de ingresos y gastos, en dos niveles. Una subcategoría es una `Category` con `parentId`. |
+| Periodo | `Period` | Día, semana (de lunes a domingo) o mes que agrupa los reportes. |
 | Tarjeta de crédito | `CreditCard` | Cuenta de pasivo con cupo y ciclo de facturación. Nunca se guarda el número completo. |
 | Cupo | `creditLimit` | Monto máximo de crédito de la tarjeta. |
 | Cupo disponible | `availableCredit` | Cupo menos la deuda vigente. |
@@ -37,10 +53,16 @@ El código, los identificadores y la API están en inglés; la interfaz y la doc
 | Tasa mensual vencida (MV) | `monthlyRate` | Tasa equivalente mensual. |
 | Amortización | `Amortization` | Plan de pagos que separa capital e intereses. |
 | Devolución | `Refund` | Reintegro vinculado a una compra original. |
-| Reversión | `Reversal` | Anulación de un movimiento que conserva la trazabilidad. |
+| Reversión | `Reversal` | Reverso de una operación hecho por el banco. Su manejo se define en la Etapa 6. |
 | Rechazada | `REJECTED` | Estado de una operación que no se contabiliza. |
 | Presupuesto | `Budget` | Límite de gasto mensual por categoría. Posterior al MVP. |
 | Meta de ahorro | `SavingsGoal` | Objetivo de ahorro. Posterior al MVP. |
+
+## Captura (Etapa 4)
+
+| Español | Código | Definición |
+|---|---|---|
+| Notificación bancaria | `BankNotification` | Texto recibido del iPhone. Es el origen de un movimiento, no un movimiento. |
 
 ## Garaje (futuro)
 

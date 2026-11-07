@@ -3,15 +3,18 @@
 | Módulo | Responsabilidad | Puede depender de | Esquema BD | Estado |
 |---|---|---|---|---|
 | `shared` | Núcleo compartido mínimo | — | — | Creado (Etapa 1) |
-| `identity` | Usuarios, credenciales, sesión y seguridad | `shared`, `notifications` (api) | `identity` | Completo (Etapa 2) |
-| `finance` | Dinero: cuentas, movimientos, tarjetas, cuotas, préstamos y dashboard | `shared`, `identity` (api) | `finance` | Etapa 3 |
-| `notifications` | Entrega de comunicaciones (correo con Resend) | `shared` | `notifications` | Etapa 5 (o Etapa 2, pendiente) |
-| `reports` | Reportes consolidados y programados, exportaciones | `shared`, `finance` (api), `notifications` (api) | `reports` | Etapa 5 |
+| `identity` | Usuarios, credenciales, sesión y seguridad | `shared`, `messaging` (api) | `identity` | Completo (Etapa 2) |
+| `finance` | Dinero: productos, categorías, movimientos, cuotas, préstamos y dashboard | `shared`, `identity` (api) | `finance` | En curso (Etapa 3) |
+| `capture` | Entrada de notificaciones bancarias: cola, análisis y bandeja de revisión | `shared`, `identity` (api), `finance` (api) | `capture` | Etapa 4 |
+| `messaging` | Entrega de correos con Resend (antes `notifications`) | `shared` | `messaging` | Etapa 5 |
+| `reports` | Reportes programados y exportaciones | `shared`, `identity` (api), `finance` (api), `messaging` (api) | `reports` | Etapa 5 |
 | `garage` | Vehículos | `shared`, `finance` (api) | `garage` | Posterior al MVP |
+
+Los nombres y el orden de etapas están en [ADR-0016](../decisions/0016-modulos-capture-y-messaging.md).
 
 Reglas generales:
 
-- El grafo es acíclico. `finance` no conoce a `reports`, `notifications` ni `garage`.
+- El grafo es acíclico. `finance` no conoce a `capture`, `reports`, `messaging` ni `garage`.
 - Un módulo solo usa de otro su paquete `api` (`@NamedInterface`). `shared` es un módulo abierto.
 - No hay relaciones JPA entre módulos, solo identificadores. Ningún módulo lee las tablas de otro.
 - Un módulo se crea cuando llega su primer caso de uso real, nunca como placeholder.
@@ -22,6 +25,7 @@ Contiene solo lo que realmente comparten varios módulos:
 
 - `domain`: `DomainException` (responde 422) y `NotFoundException` (responde 404). Los módulos extienden estas clases con su propio `code`.
 - `infrastructure.web`: `GlobalExceptionHandler`, `CorrelationIdFilter` y CORS (`CorsConfig`, `CorsProperties`).
+  - `GlobalExceptionHandler` también traduce `RequestValidationException` y las restricciones de parámetros a 400 `validation_error`, y las violaciones de índice único a 409 `conflict`.
 - `infrastructure.openapi`: metadatos del documento OpenAPI.
 
 - `domain` también incluye:
@@ -30,7 +34,7 @@ Contiene solo lo que realmente comparten varios módulos:
 - `infrastructure.web.ApiProblems` construye los errores con el formato común; también la usan los manejadores de cada módulo.
 - `infrastructure.config.ClockConfig` provee el `Clock` en UTC.
 
-Planeado: el objeto de valor `Money` (Etapa 3), cuando lo use el primer caso de uso.
+- `domain.Money`: monto con moneda y escala 2 (ADR-0006). Rechaza más de 2 decimales o más de 17 dígitos enteros (`money.amount_invalid`). Lo usan `finance` y, más adelante, `capture` y `reports`.
 
 **Riesgo a vigilar:** que `shared` se convierta en un cajón de utilidades. Antes de agregar algo, comprueba que lo usan al menos dos módulos.
 
@@ -52,18 +56,51 @@ Planeado: el objeto de valor `Money` (Etapa 3), cuando lo use el primer caso de 
   - `SessionLogin`: abre la sesión tras autenticar.
   - `AuthController` y `ProfileController`.
   - `IdentityExceptionHandler`: traduce a 401, 403 y 429.
-- **API publicada (`identity.api`):** `@CurrentUser`, que resuelve el `UserId` de la sesión para los controladores de cualquier módulo. Los otros módulos declaran `allowedDependencies = "identity :: api"`.
+- **API publicada (`identity.api`):**
+  - `@CurrentUser`: resuelve el `UserId` de la sesión para los controladores de cualquier módulo.
+  - `UserTimeZones`: zona horaria del perfil, para que otros módulos calculen "hoy" y los límites de los periodos. La implementa `ResolveUserTimeZone`.
+  - Los otros módulos declaran `allowedDependencies = "identity :: api"`.
 - **Planeado:** el evento `UserDeleted`, cuando exista la eliminación de cuentas (D15).
 
 Ver [ADR-0011](../decisions/0011-autenticacion-bloqueo-y-contrasenas.md) y [ADR-0012](../decisions/0012-registro-cerrado-y-primera-cuenta.md).
 
-## finance (Etapa 3)
+## finance (Etapa 3, en curso)
 
 - Es la única fuente de verdad del dinero.
-- Modelo propuesto: libro de movimientos sobre cuentas propias (ver `PROJECT_CONTEXT.md` §9.1). Se formaliza en un ADR al inicio de la Etapa 3.
-- El dashboard y las consultas financieras viven aquí. `reports` las consume a través de `finance.api`.
+- **Dominio (`domain.model`):**
+  - `Account`, jerarquía sellada de productos: `CashAccount`, `DepositAccount`, `CreditCardAccount` y `OtherAccount`.
+  - `Transaction`, jerarquía sellada de movimientos: `Income`, `Expense`, `Transfer` y `Adjustment`. Cada subtipo define sus efectos en saldos (`balanceEffects()`) y en reportes (`reportEffect()`).
+  - `TransactionDetails`: fecha, descripción, comercio y `PaymentChannel`.
+  - `Category`: dos niveles, de ingreso o de gasto. `DefaultCategoryCatalog` contiene el catálogo sugerido.
+  - `Period` y `PeriodComparison`: día, semana o mes, y la comparación con el periodo anterior.
+  - `SupportedCurrencies`: solo COP.
+  - Excepciones con código `finance.*`.
+- **Decisiones:** [ADR-0013](../decisions/0013-modelo-contable.md) (modelo contable), [ADR-0014](../decisions/0014-productos-otro-y-categorias.md) (productos, "Otro" y categorías) y [ADR-0015](../decisions/0015-edicion-y-borrado-de-movimientos.md) (edición y borrado).
+- **Casos de uso (`application.usecase`):**
+  - Bienvenida: `GetFinanceStatus` y `SetUpFinance` (idempotente).
+  - Productos: `ListAccounts` (con saldos y patrimonio), `CreateAccount`, `UpdateAccount`, `ArchiveAccount`, `ReactivateAccount` y `DeleteAccount`.
+  - Categorías: `ListCategories` (árbol), `CreateCategory`, `RenameCategory`, `ArchiveCategory`, `ReactivateCategory` y `DeleteCategory`.
+  - Movimientos: `RecordTransaction`, `UpdateTransaction`, `DeleteTransaction` y `ListTransactions` (filtros y paginación).
+  - Resumen: `GetPeriodSummary` calcula los totales del periodo y del anterior, el detalle por producto y por categoría principal, y la tendencia de 6 periodos. Calcula "hoy" con `identity.api.UserTimeZones`.
+- **Puertos de salida:**
+  - `AccountRepository`, `CategoryRepository` y `TransactionRepository`. Todos filtran por propietario y su método `require` responde 404 ante un recurso ajeno.
+  - `TransactionTotals`: sumas diarias y cambios de saldo calculados en SQL.
+- **Persistencia (`infrastructure.persistence`):**
+  - Migraciones V4 (productos), V5 (categorías) y V6 (movimientos) en el esquema `finance`.
+  - Una tabla por jerarquía (`accounts`, `transactions`), con columna de tipo y restricciones `CHECK` que fijan qué columnas lleva cada tipo.
+  - Llaves foráneas compuestas con `user_id` entre productos, categorías y movimientos (ADR-0003), y hacia `identity.users` (ADR-0005).
+  - Índices únicos: nombre de producto por usuario sin distinguir mayúsculas, un solo "Otro" por usuario y nombre de categoría entre hermanas del mismo tipo.
+  - Adaptadores JPA con mappers manuales. El listado de movimientos usa `Specification` de Spring Data y ordena de forma estable.
+  - `TransactionTotalsAdapter` calcula las sumas diarias y los cambios de saldo en SQL con `JdbcClient`. `TransactionTotalsConsistencyTests` las compara con las reglas del dominio sobre 80 movimientos generados.
+- **API REST (`infrastructure.web`):**
+  - Controladores de bienvenida, productos, categorías, movimientos y resumen bajo `/api/v1/finance`. Las rutas, campos y códigos están en [convenciones de la API](../api/conventions.md#finanzas).
+  - Los cuerpos son planos, con `kind` o `type`. `AccountRequest` y `TransactionRequest` validan los campos según el tipo con `TypedFields` y arman los datos de los casos de uso.
+  - Los montos viajan como cadenas (`Amounts`). Los listados usan `PageResponse`.
+  - Cada endpoint tiene pruebas de acceso cruzado (`FinanceCrossAccessTests`).
+- **Pendiente en la Etapa 3:** frontend.
+- El dashboard y las consultas financieras viven aquí. `reports` las consumirá a través de `finance.api`.
 - Nunca tendrá referencias a vehículos. `garage` guarda el identificador del movimiento que crea mediante `finance.api`.
 
-## notifications, reports y garage
+## capture, messaging, reports y garage
 
 Se documentarán al crearse.

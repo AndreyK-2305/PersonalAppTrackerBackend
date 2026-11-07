@@ -1,6 +1,6 @@
 # ADR-0001: Monolito modular con arquitectura hexagonal
 
-- Estado: Aceptada
+- Estado: Aceptada (la lista de módulos se actualizó en [ADR-0016](0016-modulos-capture-y-messaging.md))
 - Fecha: 2026-11-06
 
 ## Contexto

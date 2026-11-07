@@ -15,14 +15,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.personaltracker.shared.domain.DomainException;
 import com.personaltracker.shared.domain.NotFoundException;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import java.math.BigDecimal;
+import java.sql.SQLException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -30,6 +33,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /** Formato de error de la API (RFC 9457) para cada tipo de excepción. */
@@ -54,6 +58,39 @@ class GlobalExceptionHandlerTests {
                 .andExpect(jsonPath("$.title").value("Solicitud inválida"))
                 .andExpect(jsonPath("$.errors[*].field").value(containsInAnyOrder("name", "amount")))
                 .andExpect(jsonPath("$.errors[?(@.field == 'name')].message").value("no debe estar vacío"));
+    }
+
+    @Test
+    void invalidRequestParametersAreListedByName() throws Exception {
+        mvc.perform(get("/probe/page").param("size", "500"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("validation_error"))
+                .andExpect(jsonPath("$.errors[0].field").value("size"))
+                .andExpect(jsonPath("$.errors[0].message").value("debe ser menor que o igual a 100"));
+    }
+
+    @Test
+    void validationDoneByAWebAdapterUsesTheSameFormat() throws Exception {
+        mvc.perform(get("/probe/typed-fields"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("validation_error"))
+                .andExpect(jsonPath("$.errors[0].field").value("institution"))
+                .andExpect(jsonPath("$.errors[0].message").value("es obligatorio para este tipo de producto"));
+    }
+
+    @Test
+    void uniqueViolationsAreConflicts() throws Exception {
+        mvc.perform(get("/probe/unique-violation"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("conflict"))
+                .andExpect(content().string(not(containsString("duplicate key"))));
+    }
+
+    @Test
+    void otherIntegrityViolationsAreInternalErrors() throws Exception {
+        mvc.perform(get("/probe/foreign-key-violation"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value("internal_error"));
     }
 
     @Test
@@ -140,6 +177,26 @@ class GlobalExceptionHandlerTests {
         @GetMapping("/probe/unexpected")
         void unexpected() {
             throw new IllegalStateException("secreto interno");
+        }
+
+        @GetMapping("/probe/page")
+        void page(@RequestParam @Max(100) int size) {}
+
+        @GetMapping("/probe/typed-fields")
+        void typedFields() {
+            throw RequestValidationException.of("institution", "es obligatorio para este tipo de producto");
+        }
+
+        @GetMapping("/probe/unique-violation")
+        void uniqueViolation() {
+            throw new DataIntegrityViolationException("duplicate key",
+                    new SQLException("duplicate key value violates unique constraint", "23505"));
+        }
+
+        @GetMapping("/probe/foreign-key-violation")
+        void foreignKeyViolation() {
+            throw new DataIntegrityViolationException("foreign key",
+                    new SQLException("violates foreign key constraint", "23503"));
         }
     }
 

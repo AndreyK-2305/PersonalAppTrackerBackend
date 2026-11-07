@@ -3,9 +3,12 @@ package com.personaltracker.shared.infrastructure.web;
 import com.personaltracker.shared.domain.ConflictException;
 import com.personaltracker.shared.domain.DomainException;
 import com.personaltracker.shared.domain.NotFoundException;
+import java.sql.SQLException;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.MethodParameter;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -19,6 +22,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 /**
@@ -34,6 +38,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    // SQLSTATE de PostgreSQL para una violación de índice o restricción única.
+    private static final String UNIQUE_VIOLATION = "23505";
+
     @ExceptionHandler(NotFoundException.class)
     ResponseEntity<ProblemDetail> handleNotFound(NotFoundException ex) {
         return ApiProblems.response(HttpStatus.NOT_FOUND, ex.code(), ex.getMessage());
@@ -47,6 +54,30 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(DomainException.class)
     ResponseEntity<ProblemDetail> handleDomainRule(DomainException ex) {
         return ApiProblems.response(HttpStatus.UNPROCESSABLE_CONTENT, ex.code(), ex.getMessage());
+    }
+
+    /** Errores de validación que detecta un adaptador web; mismo formato que los de Bean Validation. */
+    @ExceptionHandler(RequestValidationException.class)
+    ResponseEntity<ProblemDetail> handleRequestValidation(RequestValidationException ex) {
+        return ResponseEntity.badRequest().body(validationProblem(ex.violations()));
+    }
+
+    /**
+     * Un índice único rechazó la operación. Ocurre cuando dos peticiones simultáneas pasan la misma
+     * comprobación de unicidad del caso de uso (por ejemplo, dos productos con el mismo nombre): se
+     * responde 409 para que el cliente reintente. Cualquier otra violación de integridad indica un
+     * error de programación.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    ResponseEntity<ProblemDetail> handleDataIntegrity(DataIntegrityViolationException ex) {
+        if (isUniqueViolation(ex)) {
+            // El mensaje de la base de datos incluye los valores duplicados: no se registra.
+            log.info("Operación rechazada por un índice único (SQLSTATE {})", UNIQUE_VIOLATION);
+            return ApiProblems.response(HttpStatus.CONFLICT, "conflict",
+                    "Ya existe un registro con esos datos. Actualiza la página e intenta de nuevo.");
+        }
+        log.error("Violación de integridad inesperada", ex);
+        return ApiProblems.response(HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     @ExceptionHandler(AuthenticationException.class)
@@ -83,10 +114,22 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                         error instanceof FieldError fieldError ? fieldError.getField() : error.getObjectName(),
                         error.getDefaultMessage()))
                 .toList();
-        ProblemDetail problem = ApiProblems.of(HttpStatus.BAD_REQUEST, "validation_error",
-                "La solicitud contiene datos inválidos.");
-        problem.setProperty("errors", violations);
-        return handleExceptionInternal(ex, problem, headers, status, request);
+        return handleExceptionInternal(ex, validationProblem(violations), headers, status, request);
+    }
+
+    /** Restricciones sobre parámetros de la petición (por ejemplo, {@code @Max} en {@code size}). */
+    @Override
+    protected ResponseEntity<Object> handleHandlerMethodValidationException(
+            HandlerMethodValidationException ex,
+            HttpHeaders headers,
+            HttpStatusCode status,
+            WebRequest request) {
+        List<FieldViolation> violations = ex.getParameterValidationResults().stream()
+                .flatMap(result -> result.getResolvableErrors().stream()
+                        .map(error -> new FieldViolation(
+                                parameterName(result.getMethodParameter()), error.getDefaultMessage())))
+                .toList();
+        return handleExceptionInternal(ex, validationProblem(violations), headers, status, request);
     }
 
     /**
@@ -102,6 +145,27 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             WebRequest request) {
         Object apiBody = ApiProblems.isApiProblem(body) ? body : ApiProblems.of(statusCode);
         return super.handleExceptionInternal(ex, apiBody, headers, statusCode, request);
+    }
+
+    private static ProblemDetail validationProblem(List<FieldViolation> violations) {
+        ProblemDetail problem = ApiProblems.of(HttpStatus.BAD_REQUEST, "validation_error",
+                "La solicitud contiene datos inválidos.");
+        problem.setProperty("errors", violations);
+        return problem;
+    }
+
+    private static String parameterName(MethodParameter parameter) {
+        String name = parameter.getParameterName();
+        return name != null ? name : "arg" + parameter.getParameterIndex();
+    }
+
+    private static boolean isUniqueViolation(Throwable ex) {
+        for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
+            if (cause instanceof SQLException sql && UNIQUE_VIOLATION.equals(sql.getSQLState())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Elemento de la propiedad {@code errors} en las respuestas {@code validation_error}. */

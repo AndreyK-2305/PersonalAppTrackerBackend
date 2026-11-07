@@ -27,12 +27,12 @@ class ApplicationSmokeTests {
     void appliesFlywayMigrationsAndCreatesModuleSchemas() {
         Integer applied = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where success", Integer.class);
-        Boolean identitySchemaExists = jdbc.queryForObject(
-                "select exists (select 1 from information_schema.schemata where schema_name = 'identity')",
-                Boolean.class);
+        Integer moduleSchemas = jdbc.queryForObject(
+                "select count(*) from information_schema.schemata where schema_name in ('identity', 'finance')",
+                Integer.class);
 
         assertThat(applied).isPositive();
-        assertThat(identitySchemaExists).isTrue();
+        assertThat(moduleSchemas).isEqualTo(2);
     }
 
     @Test

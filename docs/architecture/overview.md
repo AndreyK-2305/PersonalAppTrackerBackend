@@ -2,13 +2,14 @@
 
 ## Contexto
 
-Personal Tracker es una aplicación web de gestión personal. El MVP cubre **finanzas** y más adelante se agregará el **garaje** (vehículos). Cada usuario tiene información completamente aislada.
+Personal Tracker es una aplicación web de gestión personal. El MVP cubre **finanzas**: registro manual, captura automática de notificaciones bancarias desde el iPhone y reportes programados. Más adelante se agregará el **garaje** (vehículos). Cada usuario tiene información completamente aislada.
 
 ```mermaid
 flowchart LR
     U[Navegador] -->|HTTPS| N["nginx<br/>estáticos del frontend + proxy /api"]
     N -->|/api, /actuator/health| B["Backend Spring Boot<br/>monolito modular"]
     B --> DB[(PostgreSQL 18)]
+    I[iPhone<br/>Atajos] -.->|HTTPS, Etapa 4| N
     B -.->|Etapa 5| R[Resend]
 ```
 
@@ -24,14 +25,16 @@ flowchart BT
     identity --> shared
     finance --> identity
     finance --> shared
-    notifications --> shared
-    identity -.->|api| notifications
+    capture --> finance
+    capture --> identity
+    messaging --> shared
+    identity -.->|api| messaging
     reports --> finance
-    reports --> notifications
+    reports --> messaging
     garage --> finance
 ```
 
-Solo existen hoy `shared` e `identity`. Los demás módulos se crean en su etapa.
+Hoy existen `shared`, `identity` y `finance` (en construcción). Los demás módulos se crean en su etapa ([ADR-0016](../decisions/0016-modulos-capture-y-messaging.md)).
 
 ## Arquitectura hexagonal dentro de cada módulo
 
