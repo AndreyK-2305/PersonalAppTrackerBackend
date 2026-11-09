@@ -96,17 +96,35 @@ public class ProcessNotification {
         if (found.isEmpty()) {
             return;
         }
-        CapturedNotification notification = found.get();
+        process(found.get(), now, Optional.empty());
+    }
+
+    /**
+     * Procesa una compra en dólares que quedó sin TRM con el valor en pesos que escribió el usuario
+     * (ya reabierta con {@code reopenForManualAmount}). El monto no queda como estimado, porque es el
+     * valor real. Recorre el mismo flujo: producto, emparejamiento y tipo de movimiento.
+     */
+    @Transactional
+    public void processWithManualAmount(CapturedNotification notification, Money copAmount) {
+        if (!notification.isPending() || !copAmount.currency().equals(COP) || !copAmount.isPositive()) {
+            throw new IllegalArgumentException("Se esperaba una notificación reabierta y un monto positivo en COP");
+        }
+        process(notification, clock.instant(), Optional.of(copAmount));
+    }
+
+    private void process(CapturedNotification notification, Instant now, Optional<Money> manualAmount) {
         switch (parsers.parse(notification.raw())) {
             case ParseOutcome.NotAMovement ignored -> notification.markDiscarded(now);
             case ParseOutcome.Unrecognized ignored ->
                     notification.markForReview(ReviewReason.UNRECOGNIZED_TEXT, null, null, now);
-            case ParseOutcome.Recognized recognized -> record(notification, recognized.movement(), now);
+            case ParseOutcome.Recognized recognized ->
+                    record(notification, recognized.movement(), now, manualAmount);
         }
         notifications.save(notification);
     }
 
-    private void record(CapturedNotification notification, ParsedMovement movement, Instant now) {
+    private void record(
+            CapturedNotification notification, ParsedMovement movement, Instant now, Optional<Money> manualAmount) {
         UserId owner = notification.owner();
         ZoneId zone = owners.timeZone(owner);
         Instant occurredAt = movement.occurredAt()
@@ -114,7 +132,9 @@ public class ProcessNotification {
                 .orElse(notification.raw().receivedAt());
         LocalDate date = occurredAt.atZone(zone).toLocalDate();
 
-        Optional<Converted> converted = toCop(movement.amount(), date);
+        Optional<Converted> converted = manualAmount.isPresent()
+                ? manualAmount.map(value -> new Converted(value, Optional.empty()))
+                : toCop(movement.amount(), date);
         if (converted.isEmpty()) {
             notification.markForReview(ReviewReason.MISSING_EXCHANGE_RATE, null, null, now);
             return;

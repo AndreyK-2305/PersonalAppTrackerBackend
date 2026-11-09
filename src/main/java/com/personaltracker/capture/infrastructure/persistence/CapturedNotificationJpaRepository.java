@@ -13,6 +13,12 @@ interface CapturedNotificationJpaRepository extends JpaRepository<CapturedNotifi
 
     boolean existsByUserIdAndContentHash(UUID userId, String contentHash);
 
+    Optional<CapturedNotificationJpaEntity> findByIdAndUserId(UUID id, UUID userId);
+
+    Optional<CapturedNotificationJpaEntity> findFirstByUserIdAndTransactionId(UUID userId, UUID transactionId);
+
+    List<CapturedNotificationJpaEntity> findAllByUserIdAndStatusOrderByReceivedAtDesc(UUID userId, String status);
+
     /** Bloquea la fila pendiente; si otra transacción la tiene bloqueada, la salta. */
     @Query(value = """
             SELECT * FROM capture.notifications

@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.util.Currency;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.springframework.stereotype.Component;
 
 /** Adaptador de la cola de notificaciones sobre {@code capture.notifications}. */
@@ -58,6 +59,26 @@ class CapturedNotificationPersistenceAdapter implements CapturedNotificationRepo
         entity.setOccurredAt(footprint.map(CaptureFootprint::occurredAt).orElse(null));
         entity.setUpdatedAt(notification.updatedAt());
         repository.save(entity);
+    }
+
+    @Override
+    public Optional<CapturedNotification> findByIdAndOwner(NotificationId id, UserId owner) {
+        return repository.findByIdAndUserId(id.value(), owner.value())
+                .map(CapturedNotificationPersistenceAdapter::toDomain);
+    }
+
+    @Override
+    public Optional<CapturedNotification> findByTransaction(UserId owner, UUID transactionId) {
+        return repository.findFirstByUserIdAndTransactionId(owner.value(), transactionId)
+                .map(CapturedNotificationPersistenceAdapter::toDomain);
+    }
+
+    @Override
+    public List<CapturedNotification> findInReview(UserId owner) {
+        return repository.findAllByUserIdAndStatusOrderByReceivedAtDesc(owner.value(), CaptureStatus.REVIEW.name())
+                .stream()
+                .map(CapturedNotificationPersistenceAdapter::toDomain)
+                .toList();
     }
 
     @Override

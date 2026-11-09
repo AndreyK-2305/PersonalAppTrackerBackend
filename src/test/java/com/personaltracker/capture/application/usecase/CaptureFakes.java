@@ -10,6 +10,7 @@ import com.personaltracker.capture.domain.model.CaptureEntry;
 import com.personaltracker.capture.domain.model.CaptureStatus;
 import com.personaltracker.capture.domain.model.CapturedNotification;
 import com.personaltracker.capture.domain.model.NotificationId;
+import com.personaltracker.capture.domain.model.OwnKey;
 import com.personaltracker.capture.domain.model.OwnedProduct;
 import com.personaltracker.capture.domain.model.OwnerName;
 import com.personaltracker.shared.domain.UserId;
@@ -45,6 +46,27 @@ final class CaptureFakes {
         @Override
         public void save(CapturedNotification notification) {
             stored.put(notification.id(), notification);
+        }
+
+        @Override
+        public Optional<CapturedNotification> findByIdAndOwner(NotificationId id, UserId owner) {
+            return findById(id).filter(notification -> notification.owner().equals(owner));
+        }
+
+        @Override
+        public Optional<CapturedNotification> findByTransaction(UserId owner, UUID transactionId) {
+            return stored.values().stream()
+                    .filter(notification -> notification.owner().equals(owner))
+                    .filter(notification -> notification.transactionId().filter(transactionId::equals).isPresent())
+                    .findFirst();
+        }
+
+        @Override
+        public List<CapturedNotification> findInReview(UserId owner) {
+            return stored.values().stream()
+                    .filter(notification -> notification.owner().equals(owner))
+                    .filter(notification -> notification.status() == CaptureStatus.REVIEW)
+                    .toList();
         }
 
         @Override
@@ -138,6 +160,31 @@ final class CaptureFakes {
             }
             return Optional.ofNullable(byKey.get(key.trim().toLowerCase(Locale.ROOT)));
         }
+
+        @Override
+        public List<OwnKey> list(UserId user) {
+            throw new UnsupportedOperationException("Se prueba contra PostgreSQL");
+        }
+
+        @Override
+        public Optional<OwnKey> findByIdAndOwner(UUID id, UserId user) {
+            throw new UnsupportedOperationException("Se prueba contra PostgreSQL");
+        }
+
+        @Override
+        public boolean exists(UserId user, String normalizedKey) {
+            throw new UnsupportedOperationException("Se prueba contra PostgreSQL");
+        }
+
+        @Override
+        public void save(OwnKey key) {
+            throw new UnsupportedOperationException("Se prueba contra PostgreSQL");
+        }
+
+        @Override
+        public void delete(OwnKey key) {
+            throw new UnsupportedOperationException("Se prueba contra PostgreSQL");
+        }
     }
 
     static final class Rates implements ExchangeRates {
@@ -161,6 +208,21 @@ final class CaptureFakes {
             UUID id = UUID.randomUUID();
             recorded.add(new Recorded(owner, entry, id));
             return id;
+        }
+
+        @Override
+        public void delete(UserId owner, UUID transactionId) {
+            throw new UnsupportedOperationException("Se prueba contra PostgreSQL");
+        }
+
+        @Override
+        public UUID convertExpenseToTransfer(UserId owner, UUID expenseId, UUID destination) {
+            throw new UnsupportedOperationException("Se prueba contra PostgreSQL");
+        }
+
+        @Override
+        public UUID convertTransferToExpense(UserId owner, UUID transferId) {
+            throw new UnsupportedOperationException("Se prueba contra PostgreSQL");
         }
 
         CaptureEntry last() {

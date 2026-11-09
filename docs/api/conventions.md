@@ -102,7 +102,7 @@ Ver [ADR-0004](../decisions/0004-autenticacion-por-sesion.md) y [ADR-0011](../de
 | POST | `/api/v1/auth/login` | Público | 200 con el perfil; inicia sesión |
 | POST | `/api/v1/auth/logout` | Con o sin sesión | 204 |
 | GET | `/api/v1/me` | Con sesión | Perfil (401 si no hay sesión) |
-| PATCH | `/api/v1/me` | Con sesión | Actualización parcial: `displayName` y/o `timeZone` |
+| PATCH | `/api/v1/me` | Con sesión | Actualización parcial: `displayName`, `timeZone`, `givenNames` y `surnames`. En nombres y apellidos, un texto vacío los borra |
 | PUT | `/api/v1/me/password` | Con sesión | 204; cierra las demás sesiones |
 | GET | `/api/v1/me/device-tokens` | Con sesión | Tokens de dispositivo, los más recientes primero, incluidos los revocados; nunca el secreto |
 | POST | `/api/v1/me/device-tokens` | Con sesión | `{ name, scopes: ["FINANCE_CAPTURE"] }` → 201 con `{ token, secret }`. El secreto solo aparece aquí |
@@ -158,6 +158,28 @@ Y responden:
 
 - El orden es estable: a igual criterio, los elementos registrados más recientemente van primero.
 - Un valor fuera de rango responde 400 `validation_error` con el nombre del parámetro.
+
+## Captura
+
+Rutas con sesión bajo `/api/v1/capture` (ADR-0017). La entrada del atajo está en [Dispositivos](#dispositivos).
+
+| Método | Ruta | Respuesta |
+|---|---|---|
+| GET | `/own-keys` | Llaves Bre-B propias, normalizadas y en orden alfabético |
+| POST | `/own-keys` | `{ key, productId }` → 201. El producto debe ser una cuenta o billetera activa del usuario (422 `capture.own_key.product_invalid`); 409 `capture.own_key.taken` si la llave ya existe |
+| DELETE | `/own-keys/{id}` | 204 |
+| GET | `/reviews` | Notificaciones "Por revisar", las más recientes primero: `reason`, texto (vacío si ya se borró a los 45 días) y, si dejó un movimiento, `transactionId`, `amount` y `productId` |
+| POST | `/reviews/{id}/confirm` | 204. Acepta el movimiento como quedó (`POSSIBLE_OWN_TRANSFER` como gasto, `AMBIGUOUS_PRODUCT` en "Otro") |
+| POST | `/reviews/{id}/own-transfer` | `{ destinationProductId }` → 204. "Es mía": el gasto pasa a ser una transferencia (solo `POSSIBLE_OWN_TRANSFER`) |
+| POST | `/reviews/{id}/amount` | `{ amount }` en COP con punto decimal → 204. Registra una compra en dólares sin TRM (solo `MISSING_EXCHANGE_RATE`; 422 `capture.review.text_expired` si el texto ya se borró) |
+| POST | `/reviews/{id}/discard` | 204. No era un movimiento: descarta la notificación y borra su movimiento, si lo tiene |
+| POST | `/transactions/{transactionId}/not-own` | 204. "No es mía" sobre una transferencia captada por llave propia: pasa a ser un gasto |
+
+- **Errores:**
+  - Una acción que no corresponde al motivo responde 422 `capture.review.action_invalid`.
+  - Una notificación, llave o movimiento de otro usuario responde 404.
+- **Borrar un movimiento captado** con `DELETE /api/v1/finance/transactions/{id}` deja su notificación descartada (ADR-0015).
+- **Convertir un movimiento** ("Es mía" o "No es mía") lo borra y registra uno nuevo con otro identificador, porque el tipo de un movimiento no cambia.
 
 ## Finanzas
 

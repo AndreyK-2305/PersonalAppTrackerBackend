@@ -4,13 +4,14 @@ import com.personaltracker.identity.application.dto.UpdateProfileCommand;
 import com.personaltracker.identity.application.dto.UserProfile;
 import com.personaltracker.identity.application.port.out.UserRepository;
 import com.personaltracker.identity.domain.exception.UserNotFoundException;
+import com.personaltracker.identity.domain.model.PersonName;
 import com.personaltracker.identity.domain.model.User;
 import java.time.Clock;
 import java.time.Instant;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Cambia el nombre visible y/o la zona horaria del propio usuario. */
+/** Cambia el nombre visible, la zona horaria, los nombres o los apellidos del propio usuario. */
 @Service
 public class UpdateProfile {
 
@@ -31,6 +32,12 @@ public class UpdateProfile {
         }
         if (command.timeZone() != null) {
             user.changeTimeZone(User.parseTimeZone(command.timeZone()), now);
+        }
+        if (command.givenNames() != null || command.surnames() != null) {
+            PersonName current = user.personName();
+            user.changePersonName(new PersonName(
+                    command.givenNames() != null ? command.givenNames() : current.givenNames(),
+                    command.surnames() != null ? command.surnames() : current.surnames()), now);
         }
         users.save(user);
         return UserProfile.from(user);

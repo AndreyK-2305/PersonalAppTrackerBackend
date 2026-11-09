@@ -15,9 +15,11 @@ import org.springframework.context.annotation.Import;
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
-// Las tareas programadas de la captura se desactivan: las pruebas las ejecutan a mano.
+// Las tareas programadas de la captura se desactivan: las pruebas las ejecutan a mano. La TRM apunta
+// a un puerto local sin servicio: las pruebas no dependen de internet y una compra en dólares queda
+// sin tasa (el cliente de la TRM se prueba aparte con un servidor simulado).
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = "app.capture.jobs.enabled=false")
+        properties = {"app.capture.jobs.enabled=false", "app.capture.exchange-rate-url=http://127.0.0.1:9"})
 @AutoConfigureRestTestClient
 @Import(TestcontainersConfiguration.class)
 public @interface IntegrationTest {}

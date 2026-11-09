@@ -7,11 +7,21 @@ import com.personaltracker.shared.domain.UserId;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /** Cola y registro de notificaciones capturadas. */
 public interface CapturedNotificationRepository {
 
     Optional<CapturedNotification> findById(NotificationId id);
+
+    /** Un recurso ajeno se trata igual que uno inexistente. */
+    Optional<CapturedNotification> findByIdAndOwner(NotificationId id, UserId owner);
+
+    /** La notificación que generó el movimiento, si la hay. */
+    Optional<CapturedNotification> findByTransaction(UserId owner, UUID transactionId);
+
+    /** Las notificaciones "Por revisar" del usuario, las más recientes primero. */
+    List<CapturedNotification> findInReview(UserId owner);
 
     /**
      * La notificación si sigue pendiente, bloqueada hasta el final de la transacción. Vacío si no

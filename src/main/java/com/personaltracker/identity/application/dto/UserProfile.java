@@ -10,6 +10,8 @@ public record UserProfile(
         String email,
         String displayName,
         String timeZone,
+        String givenNames,
+        String surnames,
         Instant createdAt,
         Instant lastLoginAt) {
 
@@ -19,6 +21,8 @@ public record UserProfile(
                 user.email().value(),
                 user.displayName(),
                 user.timeZone().getId(),
+                user.personName().givenNames(),
+                user.personName().surnames(),
                 user.createdAt(),
                 user.lastLoginAt());
     }

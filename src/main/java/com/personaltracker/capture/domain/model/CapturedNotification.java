@@ -1,5 +1,6 @@
 package com.personaltracker.capture.domain.model;
 
+import com.personaltracker.capture.domain.exception.ReviewActionNotAllowedException;
 import com.personaltracker.shared.domain.UserId;
 import java.time.Duration;
 import java.time.Instant;
@@ -129,6 +130,66 @@ public final class CapturedNotification {
         requirePending();
         this.status = CaptureStatus.DISCARDED;
         this.updatedAt = now;
+    }
+
+    // Revisión (ADR-0017). Una acción que no corresponde al estado o al motivo es un error del
+    // usuario (422), no de programación: la bandeja puede estar desactualizada.
+
+    /** Acepta el movimiento tal como quedó registrado (por ejemplo, "No es mía" o producto en "Otro"). */
+    public void confirm(Instant now) {
+        requireReviewWith(reviewReason != null && reviewReason.hasMovement());
+        status = CaptureStatus.RECORDED;
+        reviewReason = null;
+        updatedAt = now;
+    }
+
+    /** Pasa a registrada con el movimiento que reemplazó al de la revisión ("Es mía"). */
+    public void resolveWithMovement(ReviewReason expected, UUID newTransactionId, Instant now) {
+        requireReviewWith(reviewReason == expected);
+        status = CaptureStatus.RECORDED;
+        reviewReason = null;
+        transactionId = Objects.requireNonNull(newTransactionId, "newTransactionId");
+        updatedAt = now;
+    }
+
+    /**
+     * Vuelve a la cola para registrarla con el valor en pesos que escribió el usuario. Solo aplica a
+     * una compra en dólares que quedó sin TRM.
+     */
+    public void reopenForManualAmount(Instant now) {
+        requireReviewWith(reviewReason == ReviewReason.MISSING_EXCHANGE_RATE);
+        status = CaptureStatus.RECEIVED;
+        reviewReason = null;
+        updatedAt = now;
+    }
+
+    /** Cambia el movimiento registrado por su reemplazo ("No es mía" sobre una transferencia). */
+    public void replaceMovement(UUID newTransactionId, Instant now) {
+        if (status != CaptureStatus.RECORDED || transactionId == null) {
+            throw new ReviewActionNotAllowedException();
+        }
+        transactionId = Objects.requireNonNull(newTransactionId, "newTransactionId");
+        updatedAt = now;
+    }
+
+    /**
+     * Descarta una notificación registrada o en revisión: no era un movimiento o el usuario borró su
+     * movimiento (ADR-0015). Se conserva para no volver a procesarla.
+     */
+    public void discard(Instant now) {
+        if (status != CaptureStatus.REVIEW && status != CaptureStatus.RECORDED) {
+            throw new ReviewActionNotAllowedException();
+        }
+        status = CaptureStatus.DISCARDED;
+        reviewReason = null;
+        transactionId = null;
+        updatedAt = now;
+    }
+
+    private void requireReviewWith(boolean condition) {
+        if (status != CaptureStatus.REVIEW || !condition) {
+            throw new ReviewActionNotAllowedException();
+        }
     }
 
     private void requirePending() {

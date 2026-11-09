@@ -53,7 +53,7 @@ class TransactionUseCasesTests {
     private final InMemoryTransactionRepository transactions = new InMemoryTransactionRepository();
     private final RecordTransaction record = new RecordTransaction(transactions, accounts, categories, CLOCK);
     private final UpdateTransaction update = new UpdateTransaction(transactions, accounts, categories, CLOCK);
-    private final DeleteTransaction delete = new DeleteTransaction(transactions);
+    private final DeleteTransaction delete = new DeleteTransaction(transactions, event -> {});
     private final ListTransactions list = new ListTransactions(transactions, accounts, categories);
     private final UserId owner = UserId.newId();
     private AccountView bank;

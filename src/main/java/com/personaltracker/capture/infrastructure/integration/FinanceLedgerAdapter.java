@@ -41,4 +41,19 @@ class FinanceLedgerAdapter implements Ledger {
                 entry.estimatedAmount(),
                 entry.description().orElse(null)));
     }
+
+    @Override
+    public void delete(UserId owner, UUID transactionId) {
+        transactions.delete(owner, transactionId);
+    }
+
+    @Override
+    public UUID convertExpenseToTransfer(UserId owner, UUID expenseId, UUID destination) {
+        return transactions.convertExpenseToTransfer(owner, expenseId, destination);
+    }
+
+    @Override
+    public UUID convertTransferToExpense(UserId owner, UUID transferId) {
+        return transactions.convertTransferToExpense(owner, transferId);
+    }
 }

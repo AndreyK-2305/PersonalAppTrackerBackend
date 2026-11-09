@@ -104,6 +104,8 @@ Ver [ADR-0011](../decisions/0011-autenticacion-bloqueo-y-contrasenas.md) y [ADR-
 - **API publicada (`finance.api`), sin tipos del dominio:**
   - `FinanceProducts`: productos activos (`ProductSummary`, sin saldos) y el producto "Otro", que se crea si no existe. La implementa `ListFinanceProducts`.
   - `CapturedTransactions`: registra un movimiento captado (`CapturedTransaction`) con las mismas reglas que el registro manual, sin categoría y con origen `CAPTURE`. La implementa `RecordCapturedTransaction`.
+    - Desde la revisión también lo borra o lo convierte: gasto ↔ transferencia, borrando y registrando de nuevo, sin publicar eventos.
+  - `TransactionDeleted`: evento que publica `DeleteTransaction` (puerto `TransactionEvents`, adaptador `SpringTransactionEvents`) cuando el usuario borra un movimiento captado. Corre en la misma transacción.
 - El dashboard y las consultas financieras viven aquí. `reports` las consumirá a través de `finance.api`.
 - Nunca tendrá referencias a vehículos. `garage` guarda el identificador del movimiento que crea mediante `finance.api`.
 
@@ -128,6 +130,11 @@ Etapa 4, ADR-0017. Depende de `shared`, `identity :: api` y `finance :: api`.
     - `OwnKeys`;
     - `ExchangeRates` (TRM de datos.gov.co);
     - `CapturedNotificationRepository`.
+- **Ajustes y revisión:**
+  - `ManageOwnKeys` gestiona las llaves Bre-B propias, que solo apuntan a cuentas o billeteras activas.
+  - `ReviewNotifications` ofrece las acciones de revisión: confirmar, "Es mía", valor en COP (reabre la notificación y la procesa con `ProcessNotification.processWithManualAmount`), descartar y "No es mía".
+  - `DiscardDeletedTransaction` responde a `TransactionDeleted` (`FinanceEventListener`).
+  - Controladores `OwnKeyController` y `ReviewController` bajo `/api/v1/capture`.
 - **Entrada y cola:**
   - **`ReceiveNotification`:** guarda lo que envía el atajo (`CaptureController`, `POST /api/v1/device/capture/notifications`, 202). Ignora los reenvíos exactos por `content_hash`.
   - **`ProcessPendingNotifications`:** toma las pendientes que ya pasaron la espera (bancos antes que Wallet) y procesa cada una en su propia transacción con `ProcessNotification`, que la bloquea con `FOR UPDATE SKIP LOCKED`.

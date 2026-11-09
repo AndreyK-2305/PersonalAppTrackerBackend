@@ -40,11 +40,12 @@ class ProfileController {
         return ProfileResponse.from(getProfile.execute(owner));
     }
 
-    /** Actualización parcial: los campos ausentes no cambian. */
+    /** Actualización parcial: los campos ausentes no cambian; nombres o apellidos vacíos se borran. */
     @PatchMapping
     ProfileResponse update(@CurrentUser UserId owner, @Valid @RequestBody UpdateProfileRequest body) {
         return ProfileResponse.from(
-                updateProfile.execute(new UpdateProfileCommand(owner, body.displayName(), body.timeZone())));
+                updateProfile.execute(new UpdateProfileCommand(
+                        owner, body.displayName(), body.timeZone(), body.givenNames(), body.surnames())));
     }
 
     @PutMapping("/password")
@@ -57,7 +58,9 @@ class ProfileController {
 
     record UpdateProfileRequest(
             @Size(min = 1, max = 100) String displayName,
-            @Size(max = 64) String timeZone) {}
+            @Size(max = 64) String timeZone,
+            @Size(max = 100) String givenNames,
+            @Size(max = 100) String surnames) {}
 
     record ChangePasswordRequest(
             @NotBlank @Size(max = 256) String currentPassword,
