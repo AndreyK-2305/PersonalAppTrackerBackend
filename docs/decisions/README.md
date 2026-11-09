@@ -34,3 +34,4 @@ Un ADR aceptado no se edita para cambiar la decisión. Se crea uno nuevo que lo 
 | [0014](0014-productos-otro-y-categorias.md) | Productos, producto "Otro" y categorías | Aceptada |
 | [0015](0015-edicion-y-borrado-de-movimientos.md) | Edición y borrado de movimientos | Aceptada |
 | [0016](0016-modulos-capture-y-messaging.md) | Módulos `capture` y `messaging`, y orden de etapas | Aceptada |
+| [0017](0017-captura-automatica.md) | Captura automática de notificaciones bancarias | Aceptada |

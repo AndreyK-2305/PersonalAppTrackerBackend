@@ -101,6 +101,20 @@ Ver [ADR-0011](../decisions/0011-autenticacion-bloqueo-y-contrasenas.md) y [ADR-
 - El dashboard y las consultas financieras viven aquí. `reports` las consumirá a través de `finance.api`.
 - Nunca tendrá referencias a vehículos. `garage` guarda el identificador del movimiento que crea mediante `finance.api`.
 
-## capture, messaging, reports y garage
+## capture
+
+Etapa 4, ADR-0017. Por ahora solo tiene dominio; el `package-info` declara la dependencia de `shared`, y las de `identity :: api` y `finance :: api` se agregan cuando las use.
+
+- **`domain.model`:**
+  - **Notificación:** `RawNotification` (app, título, texto, hora de recepción).
+  - **Resultado del análisis:** `ParsedMovement` y `ParseOutcome`.
+  - **Producto:** `ProductHint`, con entidad, tipo y últimos 4 dígitos opcionales.
+  - **Nombre del usuario:** `OwnerName`. Coincide si el nombre tiene al menos un nombre y un apellido del usuario, en cualquier orden.
+- **`domain.parsing`:**
+  - **Analizadores por fuente:** `BancolombiaSmsParser` y `RappiPushParser`, combinados en `NotificationParsers`.
+  - **Plantillas:** expresiones ancladas, con formato de monto (`AmountFormat`) y de fecha declarados.
+  - **Lo que no encaja exactamente:** es `Unrecognized` y va a revisión.
+
+## messaging, reports y garage
 
 Se documentarán al crearse.
