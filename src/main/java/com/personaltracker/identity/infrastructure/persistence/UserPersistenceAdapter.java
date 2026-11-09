@@ -2,6 +2,7 @@ package com.personaltracker.identity.infrastructure.persistence;
 
 import com.personaltracker.identity.application.port.out.UserRepository;
 import com.personaltracker.identity.domain.model.Email;
+import com.personaltracker.identity.domain.model.PersonName;
 import com.personaltracker.identity.domain.model.User;
 import com.personaltracker.shared.domain.UserId;
 import java.time.ZoneId;
@@ -45,6 +46,8 @@ class UserPersistenceAdapter implements UserRepository {
         entity.setPasswordHash(user.passwordHash());
         entity.setDisplayName(user.displayName());
         entity.setTimeZone(user.timeZone().getId());
+        entity.setGivenNames(user.personName().givenNames());
+        entity.setSurnames(user.personName().surnames());
         entity.setFailedLoginAttempts(user.failedLoginAttempts());
         entity.setLockedUntil(user.lockedUntil());
         entity.setLastLoginAt(user.lastLoginAt());
@@ -60,6 +63,7 @@ class UserPersistenceAdapter implements UserRepository {
                 entity.getPasswordHash(),
                 entity.getDisplayName(),
                 ZoneId.of(entity.getTimeZone()),
+                new PersonName(entity.getGivenNames(), entity.getSurnames()),
                 entity.getFailedLoginAttempts(),
                 entity.getLockedUntil(),
                 entity.getLastLoginAt(),

@@ -12,6 +12,7 @@ import com.personaltracker.finance.domain.model.CategoryId;
 import com.personaltracker.finance.domain.model.Expense;
 import com.personaltracker.finance.domain.model.Income;
 import com.personaltracker.finance.domain.model.PaymentChannel;
+import com.personaltracker.finance.domain.model.TransactionOrigin;
 import com.personaltracker.finance.domain.model.Transaction;
 import com.personaltracker.finance.domain.model.TransactionDetails;
 import com.personaltracker.finance.domain.model.TransactionId;
@@ -89,6 +90,8 @@ class TransactionPersistenceAdapter implements TransactionRepository {
         entity.setDescription(details.description());
         entity.setMerchant(details.merchant());
         entity.setChannel(details.channel() == null ? null : details.channel().name());
+        entity.setOrigin(transaction.origin().name());
+        entity.setAmountEstimated(transaction.isAmountEstimated());
         entity.setCreatedAt(transaction.createdAt());
         entity.setUpdatedAt(transaction.updatedAt());
         switch (transaction) {
@@ -183,7 +186,7 @@ class TransactionPersistenceAdapter implements TransactionRepository {
         AccountId source = accountId(entity.getSourceAccountId());
         AccountId destination = accountId(entity.getDestinationAccountId());
         CategoryId category = entity.getCategoryId() == null ? null : new CategoryId(entity.getCategoryId());
-        return switch (TransactionType.valueOf(entity.getType())) {
+        Transaction transaction = switch (TransactionType.valueOf(entity.getType())) {
             case INCOME -> Income.restore(id, owner, destination, category, amount, details, createdAt, updatedAt);
             case EXPENSE -> Expense.restore(id, owner, source, category, amount, details, createdAt, updatedAt);
             case TRANSFER -> Transfer.restore(id, owner, source, destination, amount, details, createdAt, updatedAt);
@@ -193,6 +196,8 @@ class TransactionPersistenceAdapter implements TransactionRepository {
                     : Adjustment.restore(id, owner, source, AdjustmentDirection.DECREASE, amount, details,
                             createdAt, updatedAt);
         };
+        transaction.restoreOrigin(TransactionOrigin.valueOf(entity.getOrigin()), entity.isAmountEstimated());
+        return transaction;
     }
 
     private static AccountId accountId(UUID value) {

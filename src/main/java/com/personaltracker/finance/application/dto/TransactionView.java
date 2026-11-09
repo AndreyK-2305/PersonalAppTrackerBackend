@@ -9,6 +9,7 @@ import com.personaltracker.finance.domain.model.Income;
 import com.personaltracker.finance.domain.model.PaymentChannel;
 import com.personaltracker.finance.domain.model.Transaction;
 import com.personaltracker.finance.domain.model.TransactionId;
+import com.personaltracker.finance.domain.model.TransactionOrigin;
 import com.personaltracker.finance.domain.model.TransactionType;
 import com.personaltracker.finance.domain.model.Transfer;
 import com.personaltracker.shared.domain.Money;
@@ -19,7 +20,8 @@ import java.time.LocalDate;
  * Movimiento en forma plana. Según el tipo, son nulos {@code sourceAccount} (ingreso),
  * {@code destinationAccount} (gasto), {@code category} (transferencia, ajuste o sin categoría) y
  * {@code direction} (todo salvo ajustes). Un ajuste usa {@code destinationAccount} si aumenta el saldo
- * y {@code sourceAccount} si lo disminuye.
+ * y {@code sourceAccount} si lo disminuye. {@code amountEstimated} indica un monto convertido de
+ * dólares con la TRM en un movimiento captado (ADR-0017).
  */
 public record TransactionView(
         TransactionId id,
@@ -33,6 +35,8 @@ public record TransactionView(
         AccountId destinationAccount,
         CategoryId category,
         AdjustmentDirection direction,
+        TransactionOrigin origin,
+        boolean amountEstimated,
         Instant createdAt,
         Instant updatedAt) {
 
@@ -65,6 +69,8 @@ public record TransactionView(
                 destination,
                 category,
                 direction,
+                transaction.origin(),
+                transaction.isAmountEstimated(),
                 transaction.createdAt(),
                 transaction.updatedAt());
     }

@@ -25,6 +25,12 @@ class UserJpaEntity {
     @Column(name = "display_name", nullable = false, length = 100)
     private String displayName;
 
+    @Column(name = "given_names", length = 100)
+    private String givenNames;
+
+    @Column(length = 100)
+    private String surnames;
+
     @Column(name = "time_zone", nullable = false, length = 64)
     private String timeZone;
 
@@ -79,6 +85,22 @@ class UserJpaEntity {
 
     void setDisplayName(String displayName) {
         this.displayName = displayName;
+    }
+
+    String getGivenNames() {
+        return givenNames;
+    }
+
+    void setGivenNames(String givenNames) {
+        this.givenNames = givenNames;
+    }
+
+    String getSurnames() {
+        return surnames;
+    }
+
+    void setSurnames(String surnames) {
+        this.surnames = surnames;
     }
 
     String getTimeZone() {

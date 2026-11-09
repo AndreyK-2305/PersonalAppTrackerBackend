@@ -25,6 +25,8 @@ public abstract sealed class Transaction permits Income, Expense, Transfer, Adju
     private TransactionDetails details;
     private final Instant createdAt;
     private Instant updatedAt;
+    private TransactionOrigin origin = TransactionOrigin.MANUAL;
+    private boolean amountEstimated;
 
     Transaction(
             TransactionId id,
@@ -49,8 +51,29 @@ public abstract sealed class Transaction permits Income, Expense, Transfer, Adju
     /** Cambio que produce en el saldo de cada producto afectado. */
     public abstract List<BalanceEffect> balanceEffects();
 
-    /** Aplica el monto y los detalles; cada subclase valida antes sus productos y su categoría. */
+    /**
+     * Marca un movimiento recién creado como captado de una notificación (ADR-0017).
+     * {@code amountEstimated} indica que el monto es una conversión con la TRM y no el valor final.
+     */
+    public void markCaptured(boolean amountEstimated) {
+        this.origin = TransactionOrigin.CAPTURE;
+        this.amountEstimated = amountEstimated;
+    }
+
+    /** Reconstruye el origen de un movimiento persistido. */
+    public void restoreOrigin(TransactionOrigin origin, boolean amountEstimated) {
+        this.origin = Objects.requireNonNull(origin, "origin");
+        this.amountEstimated = amountEstimated;
+    }
+
+    /**
+     * Aplica el monto y los detalles; cada subclase valida antes sus productos y su categoría. Si el
+     * usuario cambia un monto estimado, deja de serlo: escribió el valor real.
+     */
     void reviseCommon(Money newAmount, TransactionDetails newDetails, Instant now) {
+        if (!amount.equals(newAmount)) {
+            amountEstimated = false;
+        }
         amount = Objects.requireNonNull(newAmount, "newAmount");
         details = Objects.requireNonNull(newDetails, "newDetails");
         updatedAt = now;
@@ -115,6 +138,14 @@ public abstract sealed class Transaction permits Income, Expense, Transfer, Adju
 
     public TransactionDetails details() {
         return details;
+    }
+
+    public TransactionOrigin origin() {
+        return origin;
+    }
+
+    public boolean isAmountEstimated() {
+        return amountEstimated;
     }
 
     public Instant createdAt() {

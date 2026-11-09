@@ -165,6 +165,8 @@ Rutas bajo `/api/v1/finance`, todas con sesión. Las que modifican datos requier
 | DELETE | `/transactions/{id}` | 204; borrado definitivo |
 | GET | `/summary` | Resumen de `period` (`DAY`, `WEEK` o `MONTH`, por defecto `MONTH`) que contiene `date` (por defecto, hoy en la zona horaria del perfil) |
 
+**Origen de los movimientos:** cada movimiento responde `origin` (`MANUAL` o `CAPTURE`) y `amountEstimated`. Este último es verdadero en los movimientos captados con un monto convertido de dólares con la TRM, y deja de serlo cuando el usuario cambia el monto. Los dos campos son de solo lectura: no se envían al crear ni al editar.
+
 **Campos según el tipo de producto (`kind`):**
 
 | Tipo | Campos |

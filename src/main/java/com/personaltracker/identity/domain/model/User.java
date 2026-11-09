@@ -25,6 +25,7 @@ public final class User {
     private String passwordHash;
     private String displayName;
     private ZoneId timeZone;
+    private PersonName personName;
     private int failedLoginAttempts;
     private Instant lockedUntil;
     private Instant lastLoginAt;
@@ -37,6 +38,7 @@ public final class User {
             String passwordHash,
             String displayName,
             ZoneId timeZone,
+            PersonName personName,
             int failedLoginAttempts,
             Instant lockedUntil,
             Instant lastLoginAt,
@@ -47,6 +49,7 @@ public final class User {
         this.passwordHash = Objects.requireNonNull(passwordHash, "passwordHash");
         this.displayName = Objects.requireNonNull(displayName, "displayName");
         this.timeZone = Objects.requireNonNull(timeZone, "timeZone");
+        this.personName = Objects.requireNonNull(personName, "personName");
         this.failedLoginAttempts = failedLoginAttempts;
         this.lockedUntil = lockedUntil;
         this.lastLoginAt = lastLoginAt;
@@ -57,7 +60,7 @@ public final class User {
     /** Crea una cuenta nueva con la zona horaria por defecto. */
     public static User register(UserId id, Email email, String passwordHash, String displayName, Instant now) {
         return new User(id, email, passwordHash, validDisplayName(displayName), DEFAULT_TIME_ZONE,
-                0, null, null, now, now);
+                PersonName.EMPTY, 0, null, null, now, now);
     }
 
     /** Reconstruye una cuenta persistida tal como estaba. */
@@ -67,12 +70,13 @@ public final class User {
             String passwordHash,
             String displayName,
             ZoneId timeZone,
+            PersonName personName,
             int failedLoginAttempts,
             Instant lockedUntil,
             Instant lastLoginAt,
             Instant createdAt,
             Instant updatedAt) {
-        return new User(id, email, passwordHash, displayName, timeZone, failedLoginAttempts,
+        return new User(id, email, passwordHash, displayName, timeZone, personName, failedLoginAttempts,
                 lockedUntil, lastLoginAt, createdAt, updatedAt);
     }
 
@@ -119,6 +123,11 @@ public final class User {
         updatedAt = now;
     }
 
+    public void changePersonName(PersonName newPersonName, Instant now) {
+        personName = Objects.requireNonNull(newPersonName, "newPersonName");
+        updatedAt = now;
+    }
+
     public void changeTimeZone(ZoneId newTimeZone, Instant now) {
         timeZone = Objects.requireNonNull(newTimeZone, "newTimeZone");
         updatedAt = now;
@@ -150,6 +159,10 @@ public final class User {
 
     public ZoneId timeZone() {
         return timeZone;
+    }
+
+    public PersonName personName() {
+        return personName;
     }
 
     public int failedLoginAttempts() {

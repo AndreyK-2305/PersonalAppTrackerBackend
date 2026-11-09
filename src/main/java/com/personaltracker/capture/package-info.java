@@ -3,7 +3,7 @@
  * del iPhone, las analiza y registra los movimientos a través de {@code finance :: api}
  * (ADR-0016 y ADR-0017).
  */
-@ApplicationModule(displayName = "Capture", allowedDependencies = "shared")
+@ApplicationModule(displayName = "Capture", allowedDependencies = {"shared", "identity :: api", "finance :: api"})
 package com.personaltracker.capture;
 
 import org.springframework.modulith.ApplicationModule;

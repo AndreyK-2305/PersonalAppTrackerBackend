@@ -55,6 +55,12 @@ class TransactionJpaEntity {
     @Column(length = 20)
     private String channel;
 
+    @Column(nullable = false, length = 10)
+    private String origin;
+
+    @Column(name = "amount_estimated", nullable = false)
+    private boolean amountEstimated;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -161,6 +167,22 @@ class TransactionJpaEntity {
 
     void setChannel(String channel) {
         this.channel = channel;
+    }
+
+    String getOrigin() {
+        return origin;
+    }
+
+    void setOrigin(String origin) {
+        this.origin = origin;
+    }
+
+    boolean isAmountEstimated() {
+        return amountEstimated;
+    }
+
+    void setAmountEstimated(boolean amountEstimated) {
+        this.amountEstimated = amountEstimated;
     }
 
     Instant getCreatedAt() {

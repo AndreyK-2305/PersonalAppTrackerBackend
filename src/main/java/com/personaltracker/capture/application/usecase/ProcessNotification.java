@@ -12,6 +12,7 @@ import com.personaltracker.capture.domain.model.CaptureFootprint;
 import com.personaltracker.capture.domain.model.CapturedNotification;
 import com.personaltracker.capture.domain.model.MovementDirection;
 import com.personaltracker.capture.domain.model.NotificationId;
+import com.personaltracker.capture.domain.model.OwnedProduct;
 import com.personaltracker.capture.domain.model.ParseOutcome;
 import com.personaltracker.capture.domain.model.ParsedMovement;
 import com.personaltracker.capture.domain.model.ProductResolution;
@@ -27,8 +28,10 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.Currency;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -46,6 +49,7 @@ import org.springframework.transaction.annotation.Transactional;
  * La cola procesa primero los avisos del banco y después los de Wallet, para que el movimiento
  * registrado tenga los datos más completos.
  */
+@Service
 public class ProcessNotification {
 
     static final Currency COP = Currency.getInstance("COP");
@@ -119,7 +123,8 @@ public class ProcessNotification {
         Optional<Money> amount = converted.map(Converted::amount);
         Optional<BigDecimal> rate = converted.get().rate();
 
-        ProductResolution resolution = ProductResolution.resolve(movement.product(), products.activeProducts(owner));
+        List<OwnedProduct> active = products.activeProducts(owner);
+        ProductResolution resolution = ProductResolution.resolve(movement.product(), active);
         UUID product = resolution instanceof ProductResolution.Matched matched
                 ? matched.productId()
                 : products.otherProduct(owner);
@@ -147,6 +152,8 @@ public class ProcessNotification {
                     ? movement.destinationKey()
                             .flatMap(key -> ownKeys.productFor(owner, key))
                             .filter(keyProduct -> !keyProduct.equals(product))
+                            // Una llave de un producto borrado o archivado se ignora.
+                            .filter(keyProduct -> active.stream().anyMatch(owned -> owned.id().equals(keyProduct)))
                     : Optional.empty();
             type = destination.isPresent() ? EntryType.TRANSFER : EntryType.EXPENSE;
             if (type == EntryType.EXPENSE && reason == null && isOwnName(owner, movement)) {
