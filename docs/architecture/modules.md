@@ -103,7 +103,7 @@ Ver [ADR-0011](../decisions/0011-autenticacion-bloqueo-y-contrasenas.md) y [ADR-
 
 ## capture
 
-Etapa 4, ADR-0017. Por ahora solo tiene dominio; el `package-info` declara la dependencia de `shared`, y las de `identity :: api` y `finance :: api` se agregan cuando las use.
+Etapa 4, ADR-0017. Por ahora tiene dominio y casos de uso, sin adaptadores; el `package-info` declara la dependencia de `shared`, y las de `identity :: api` y `finance :: api` se agregan cuando las use.
 
 - **`domain.model`:**
   - **Notificación:** `RawNotification` (app, título, texto, hora de recepción).
@@ -114,6 +114,14 @@ Etapa 4, ADR-0017. Por ahora solo tiene dominio; el `package-info` declara la de
   - **Analizadores por fuente:** `BancolombiaSmsParser` y `RappiPushParser`, combinados en `NotificationParsers`.
   - **Plantillas:** expresiones ancladas, con formato de monto (`AmountFormat`) y de fecha declarados.
   - **Lo que no encaja exactamente:** es `Unrecognized` y va a revisión.
+- **`application`:**
+  - **`ProcessNotification`:** analiza una notificación de la cola, identifica el producto (`ProductResolution`), decide el tipo (gasto, ingreso o transferencia a una llave propia), convierte los dólares con la TRM y empareja los avisos de la misma compra que llegan por fuentes distintas (2 minutos de espera; mismo producto y monto en 5 minutos). Después registra el movimiento con el puerto `Ledger` o deja la notificación "Por revisar" (`ReviewReason`).
+  - **Puertos de salida:**
+    - `UserProducts` y `Ledger` → `finance :: api`;
+    - `CaptureOwners` → `identity :: api`;
+    - `OwnKeys`;
+    - `ExchangeRates` (TRM de datos.gov.co);
+    - `CapturedNotificationRepository`.
 
 ## messaging, reports y garage
 

@@ -14,7 +14,7 @@
 - **Filtro inicial:** lo hacen las automatizaciones de Atajos del iPhone; el disparador funciona sin confirmación y con el teléfono bloqueado.
 - **Datos:** el texto crudo se conserva 45 días. La categoría siempre es manual, y lo captado llega "Por clasificar".
 - **Producto:** se identifica por entidad + últimos 4 dígitos.
-- **Duplicados:** el mismo monto, comercio y producto en menos de 5 minutos va a revisión.
+- **Duplicados:** la propuesta inicial era mandar a revisión el mismo monto, comercio y producto en menos de 5 minutos. El 2026-11-09 el usuario la cambió por la espera y el emparejamiento por fuente (sección "Misma compra avisada por varias fuentes").
 
 Los ejemplos reales están en [formatos-de-notificaciones.md](../capture/formatos-de-notificaciones.md). Muestran tres cosas:
 
@@ -52,7 +52,8 @@ Los ejemplos reales están en [formatos-de-notificaciones.md](../capture/formato
 
 ### Cola y procesamiento
 
-- **Cola:** tabla `capture.notifications` con estado `RECEIVED → PARSED | REVIEW | DISCARDED | FAILED`.
+- **Cola:** tabla `capture.notifications` con estado `RECEIVED → RECORDED | REVIEW | PAIRED | DISCARDED`.
+- **Espera:** cada notificación se procesa **2 minutos** después de recibirla, para que lleguen los demás avisos de la misma compra. En cada lote, los avisos de los bancos se procesan antes que los de Wallet, que traen menos datos.
 - **Trabajador:**
   - Toma lotes con `FOR UPDATE SKIP LOCKED`.
   - No agrega dependencias: usa una tarea programada de Spring.
@@ -82,7 +83,6 @@ Los ejemplos reales están en [formatos-de-notificaciones.md](../capture/formato
   - se crea con `finance.api`, con `origin = CAPTURE`, sin categoría y con el medio de pago de la plantilla;
   - una migración de `finance` agrega la columna `origin` (`MANUAL` o `CAPTURE`).
 - **Transferencias propias, moneda extranjera y consignaciones:** ver las secciones siguientes.
-- **Posible duplicado** (mismo monto, comercio y producto en menos de 5 minutos, por ejemplo un SMS y un aviso de Wallet de la misma compra): el movimiento queda "Por revisar".
 - **Revisión:** se hace desde Movimientos, con los filtros "Por revisar" y "Por clasificar". No es una sección aparte.
 - **Borrado:** al borrar un movimiento captado, la notificación queda `DISCARDED` ([ADR-0015](0015-edicion-y-borrado-de-movimientos.md)).
 
@@ -92,6 +92,22 @@ El iPhone necesita llegar al backend por HTTPS. Dónde se publica sigue pendient
 
 - **Fase 4a:** todo lo anterior, probado en local con los textos del catálogo.
 - **Fase 4b:** publicación y el atajo real.
+
+### Misma compra avisada por varias fuentes
+
+Decidido por el usuario el 2026-11-09, después de comparar el historial de Wallet con los SMS.
+
+- **Por qué no sirve el comercio:** Wallet usa la ubicación del comercio y el banco el nombre con el que está registrado (`D1 - Antonia Santos` frente a `TIENDA D1 LOS SANTOS`).
+- **Qué es la misma compra:** dos avisos de **fuentes distintas** (por ejemplo, SMS de Bancolombia y Wallet) con el mismo producto identificado y el mismo monto en COP, ocurridos con menos de 5 minutos de diferencia.
+  - **Monto:** se admite menos de un peso de diferencia, porque Wallet no muestra centavos.
+- **Resultado:**
+  - El primer aviso registra el movimiento.
+  - El otro queda `PAIRED` (emparejado), sin movimiento y enlazado al primero.
+  - Si el aviso del banco llega tarde y Wallet ya registró la compra, el del banco se empareja con ella.
+- **Uno a uno:** cada aviso se empareja con uno solo, el más cercano en el tiempo.
+  - Tres compras iguales seguidas son tres SMS y tres avisos de Wallet: quedan tres movimientos.
+  - Dos avisos de la **misma fuente** nunca se emparejan, porque son compras distintas.
+- **Producto sin identificar:** no se empareja, porque "Otro" agrupa productos distintos.
 
 ### Transferencias a productos propios (B3)
 
@@ -106,7 +122,7 @@ Decidido por el usuario el 2026-11-09.
   - **Regla:** el destinatario coincide si todas sus palabras están entre tus nombres y apellidos, sin importar mayúsculas, tildes ni orden, e incluye **al menos un nombre y al menos un apellido**. Por ejemplo, para "Ana María Pérez Gómez" coinciden "María Pérez" y "Ana María Gómez"; "Ana" sola o "Ana López" no.
   - **Resultado:** el nombre no basta para saber el producto de destino ni para descartar a un homónimo. El movimiento va a "Por revisar" con la casilla **"Es mía (transferencia entre mis productos)"** marcada. Al confirmarlo eliges el producto de destino; si desmarcas la casilla, queda como gasto.
 - **Desmarcar después:** los movimientos captados como transferencia ofrecen "No es mía". Esa acción borra la transferencia y vuelve a registrar la misma notificación como gasto. El tipo de un movimiento sigue sin poder cambiarse en `finance` ([ADR-0015](0015-edicion-y-borrado-de-movimientos.md)); la conversión la hace `capture` a partir de la notificación.
-- **Contraparte:** si el producto de destino también avisa que recibió el dinero (por ejemplo, Rappi), ese aviso se marca como **parte de la transferencia** y no crea un ingreso. Para eso debe tener el mismo monto, llegar al mismo producto y estar dentro de la ventana de 5 minutos.
+- **Contraparte:** si el producto de destino también avisa que recibió el dinero (por ejemplo, Rappi), ese aviso se marca como **parte de la transferencia** y no crea un ingreso. Para eso debe tener el mismo monto, llegar al mismo producto y estar dentro de la ventana de 5 minutos. Queda pendiente hasta tener un ejemplo del aviso de Rappi de dinero recibido.
 
 ### Compras en moneda extranjera (B1c)
 

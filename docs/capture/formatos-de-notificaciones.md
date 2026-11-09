@@ -29,7 +29,19 @@ Todas empiezan con `Bancolombia: `.
 
 ## Apple Wallet
 
-Sin ejemplos todavía.
+Todavía no hay ejemplo de **notificación**. El 2026-11-09 el usuario compartió el **historial** de transacciones de su tarjeta de crédito Bancolombia en Wallet, y de él se ven tres cosas:
+
+- **Qué compras aparecen:** todas las de la tarjeta, no solo las hechas con Apple Pay. Las físicas muestran la ciudad, y las de Apple Pay dicen "Apple Pay".
+- **Monto:** con punto de miles, sin decimales (`$ 9.980`), es decir, el formato `SPANISH`.
+- **Comercio:** viene con otro nombre que en el SMS, así que el comercio no sirve para reconocer que dos avisos son la misma compra:
+
+  | Wallet | SMS de Bancolombia |
+  |---|---|
+  | `D1 - Antonia Santos` | `TIENDA D1 LOS SANTOS` |
+  | `Tiendas Ara` | `TIENDAS ARA` |
+  | `Eds Los Libertadores` | `EDS LOS LIBERTADORES` |
+
+Si Wallet también notifica cada compra, una compra con la tarjeta llega dos veces (SMS y Wallet). Se resuelve con la espera de 2 minutos y el emparejamiento por fuente, producto y monto (ADR-0017). Para eso, la notificación de Wallet debe permitir identificar la tarjeta (entidad y, si los trae, últimos 4 dígitos).
 
 ## Formatos de monto
 

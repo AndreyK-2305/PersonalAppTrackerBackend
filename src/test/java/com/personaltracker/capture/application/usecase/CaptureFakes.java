@@ -1,0 +1,140 @@
+package com.personaltracker.capture.application.usecase;
+
+import com.personaltracker.capture.application.port.out.CaptureOwners;
+import com.personaltracker.capture.application.port.out.CapturedNotificationRepository;
+import com.personaltracker.capture.application.port.out.ExchangeRates;
+import com.personaltracker.capture.application.port.out.Ledger;
+import com.personaltracker.capture.application.port.out.OwnKeys;
+import com.personaltracker.capture.application.port.out.UserProducts;
+import com.personaltracker.capture.domain.model.CaptureEntry;
+import com.personaltracker.capture.domain.model.CaptureStatus;
+import com.personaltracker.capture.domain.model.CapturedNotification;
+import com.personaltracker.capture.domain.model.NotificationId;
+import com.personaltracker.capture.domain.model.OwnedProduct;
+import com.personaltracker.capture.domain.model.OwnerName;
+import com.personaltracker.shared.domain.UserId;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+/** Dobles en memoria de los puertos de {@code capture}. */
+final class CaptureFakes {
+
+    private CaptureFakes() {}
+
+    static final class Notifications implements CapturedNotificationRepository {
+
+        final Map<NotificationId, CapturedNotification> stored = new LinkedHashMap<>();
+
+        @Override
+        public Optional<CapturedNotification> findById(NotificationId id) {
+            return Optional.ofNullable(stored.get(id));
+        }
+
+        @Override
+        public void save(CapturedNotification notification) {
+            stored.put(notification.id(), notification);
+        }
+
+        @Override
+        public List<CapturedNotification> findUnpairedWithMovement(UserId owner, Instant from, Instant to) {
+            Set<NotificationId> paired = stored.values().stream()
+                    .filter(other -> other.status() == CaptureStatus.PAIRED)
+                    .flatMap(other -> other.pairedWith().stream())
+                    .collect(Collectors.toSet());
+            return stored.values().stream()
+                    .filter(other -> other.owner().equals(owner))
+                    .filter(CapturedNotification::hasMovement)
+                    .filter(other -> !paired.contains(other.id()))
+                    .filter(other -> other.footprint()
+                            .filter(footprint -> !footprint.occurredAt().isBefore(from)
+                                    && !footprint.occurredAt().isAfter(to))
+                            .isPresent())
+                    .toList();
+        }
+    }
+
+    static final class Products implements UserProducts {
+
+        final Map<UserId, List<OwnedProduct>> active = new HashMap<>();
+        final Map<UserId, UUID> other = new HashMap<>();
+
+        @Override
+        public List<OwnedProduct> activeProducts(UserId owner) {
+            return active.getOrDefault(owner, List.of());
+        }
+
+        @Override
+        public UUID otherProduct(UserId owner) {
+            return other.computeIfAbsent(owner, ignored -> UUID.randomUUID());
+        }
+    }
+
+    static final class Owners implements CaptureOwners {
+
+        final Map<UserId, OwnerName> names = new HashMap<>();
+
+        @Override
+        public ZoneId timeZone(UserId owner) {
+            return ZoneId.of("America/Bogota");
+        }
+
+        @Override
+        public OwnerName name(UserId owner) {
+            return names.getOrDefault(owner, OwnerName.of("", ""));
+        }
+    }
+
+    static final class Keys implements OwnKeys {
+
+        final Map<String, UUID> byKey = new HashMap<>();
+        UserId owner;
+
+        @Override
+        public Optional<UUID> productFor(UserId user, String key) {
+            if (!user.equals(owner)) {
+                return Optional.empty();
+            }
+            return Optional.ofNullable(byKey.get(key.trim().toLowerCase(Locale.ROOT)));
+        }
+    }
+
+    static final class Rates implements ExchangeRates {
+
+        final Map<LocalDate, BigDecimal> byDate = new HashMap<>();
+
+        @Override
+        public Optional<BigDecimal> copPerUsd(LocalDate date) {
+            return Optional.ofNullable(byDate.get(date));
+        }
+    }
+
+    static final class RecordingLedger implements Ledger {
+
+        record Recorded(UserId owner, CaptureEntry entry, UUID id) {}
+
+        final List<Recorded> recorded = new ArrayList<>();
+
+        @Override
+        public UUID record(UserId owner, CaptureEntry entry) {
+            UUID id = UUID.randomUUID();
+            recorded.add(new Recorded(owner, entry, id));
+            return id;
+        }
+
+        CaptureEntry last() {
+            return recorded.getLast().entry();
+        }
+    }
+}

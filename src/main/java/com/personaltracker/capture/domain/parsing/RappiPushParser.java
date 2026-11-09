@@ -5,6 +5,7 @@ import static com.personaltracker.capture.domain.parsing.Extraction.COP;
 
 import com.personaltracker.capture.domain.model.CaptureChannel;
 import com.personaltracker.capture.domain.model.CaptureInstitution;
+import com.personaltracker.capture.domain.model.CaptureSource;
 import com.personaltracker.capture.domain.model.MovementDirection;
 import com.personaltracker.capture.domain.model.ParseOutcome;
 import com.personaltracker.capture.domain.model.ProductHint;
@@ -26,7 +27,7 @@ public final class RappiPushParser implements NotificationParser {
 
     private static final Template CARD_PURCHASE_BODY = Template.movement(CARD_PURCHASE,
             "Tu compra en (?<merchant>.+?) por \\$ ?" + AMOUNT + " fue exitosa\\.",
-            m -> Extraction.of(CARD_PURCHASE, MovementDirection.OUTFLOW, CaptureChannel.CARD)
+            m -> Extraction.of(CaptureSource.RAPPI_PUSH, CARD_PURCHASE,MovementDirection.OUTFLOW, CaptureChannel.CARD)
                     .amount(m, AmountFormat.SPANISH, COP)
                     .product(ProductHint.withoutDigits(CaptureInstitution.RAPPI, ProductType.CREDIT_CARD))
                     .counterparty(m.group("merchant"))

@@ -1,6 +1,7 @@
 package com.personaltracker.capture.domain.parsing;
 
 import com.personaltracker.capture.domain.model.CaptureChannel;
+import com.personaltracker.capture.domain.model.CaptureSource;
 import com.personaltracker.capture.domain.model.MovementDirection;
 import com.personaltracker.capture.domain.model.ParsedMovement;
 import com.personaltracker.capture.domain.model.ProductHint;
@@ -25,6 +26,7 @@ final class Extraction {
 
     static final Currency COP = Currency.getInstance("COP");
 
+    private final CaptureSource source;
     private final String templateId;
     private final MovementDirection direction;
     private final CaptureChannel channel;
@@ -36,14 +38,17 @@ final class Extraction {
     private Optional<String> destinationKey = Optional.empty();
     private Optional<String> recipientName = Optional.empty();
 
-    private Extraction(String templateId, MovementDirection direction, CaptureChannel channel) {
+    private Extraction(
+            CaptureSource source, String templateId, MovementDirection direction, CaptureChannel channel) {
+        this.source = source;
         this.templateId = templateId;
         this.direction = direction;
         this.channel = channel;
     }
 
-    static Extraction of(String templateId, MovementDirection direction, CaptureChannel channel) {
-        return new Extraction(templateId, direction, channel);
+    static Extraction of(
+            CaptureSource source, String templateId, MovementDirection direction, CaptureChannel channel) {
+        return new Extraction(source, templateId, direction, channel);
     }
 
     Extraction amount(Matcher matcher, AmountFormat format, Currency currency) {
@@ -83,7 +88,7 @@ final class Extraction {
         if (invalid || amount.isEmpty() || product == null) {
             return Optional.empty();
         }
-        return Optional.of(new ParsedMovement(templateId, direction, product, amount.get(), occurredAt,
+        return Optional.of(new ParsedMovement(source, templateId, direction, product, amount.get(), occurredAt,
                 counterparty, channel, destinationKey, recipientName));
     }
 

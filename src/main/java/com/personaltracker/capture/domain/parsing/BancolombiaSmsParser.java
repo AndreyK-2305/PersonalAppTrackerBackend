@@ -8,6 +8,7 @@ import static com.personaltracker.capture.domain.parsing.Extraction.TIME;
 
 import com.personaltracker.capture.domain.model.CaptureChannel;
 import com.personaltracker.capture.domain.model.CaptureInstitution;
+import com.personaltracker.capture.domain.model.CaptureSource;
 import com.personaltracker.capture.domain.model.MovementDirection;
 import com.personaltracker.capture.domain.model.ParseOutcome;
 import com.personaltracker.capture.domain.model.ParsedMovement;
@@ -41,6 +42,7 @@ public final class BancolombiaSmsParser implements NotificationParser {
     private static final Set<String> MESSAGE_APPS = Set.of("mensajes", "messages");
     private static final String PREFIX = "bancolombia:";
     private static final CaptureInstitution BANK = CaptureInstitution.BANCOLOMBIA;
+    private static final CaptureSource SOURCE = CaptureSource.BANCOLOMBIA_SMS;
     private static final String CURRENCY = "(?<currency>COP|USD) ?";
     private static final String AT = " a las ";
 
@@ -84,7 +86,7 @@ public final class BancolombiaSmsParser implements NotificationParser {
             Template.movement(PAYMENT_RECEIVED,
                     "Bancolombia: Recibiste un pago por \\$" + AMOUNT + " de (?<payer>.+?) a tu cuenta"
                             + " (?:AHORROS|CORRIENTE), el " + TIME + AT + DATE + "\\.",
-                    m -> Extraction.of(PAYMENT_RECEIVED, MovementDirection.INFLOW, CaptureChannel.BANK_TRANSFER)
+                    m -> Extraction.of(SOURCE,PAYMENT_RECEIVED, MovementDirection.INFLOW, CaptureChannel.BANK_TRANSFER)
                             .amount(m, AmountFormat.ENGLISH, COP)
                             .occurredAt(m)
                             .product(ProductHint.withoutDigits(BANK, ProductType.DEPOSIT))
@@ -93,7 +95,7 @@ public final class BancolombiaSmsParser implements NotificationParser {
             Template.movement(CASH_DEPOSIT,
                     "Bancolombia: Recibiste una consignacion por \\$" + AMOUNT
                             + " desde el corresponsal (?<agent>.+?) en [^,]+, el " + DATE + " " + TIME + "\\.",
-                    m -> Extraction.of(CASH_DEPOSIT, MovementDirection.INFLOW, CaptureChannel.DEPOSIT)
+                    m -> Extraction.of(SOURCE,CASH_DEPOSIT, MovementDirection.INFLOW, CaptureChannel.DEPOSIT)
                             .amount(m, AmountFormat.ENGLISH, COP)
                             .occurredAt(m)
                             .product(ProductHint.withoutDigits(BANK, ProductType.DEPOSIT))
@@ -121,7 +123,7 @@ public final class BancolombiaSmsParser implements NotificationParser {
     private static Optional<ParsedMovement> cardPurchase(
             String templateId, Matcher m) {
         Currency currency = Currency.getInstance(m.group("currency").toUpperCase(Locale.ROOT));
-        return Extraction.of(templateId, MovementDirection.OUTFLOW, CaptureChannel.CARD)
+        return Extraction.of(SOURCE,templateId, MovementDirection.OUTFLOW, CaptureChannel.CARD)
                 .amount(m, AmountFormat.SPANISH, currency)
                 .occurredAt(m)
                 .product(ProductHint.of(BANK, ProductType.CREDIT_CARD, m.group("last")))
@@ -132,7 +134,7 @@ public final class BancolombiaSmsParser implements NotificationParser {
     /** Movimientos de la cuenta de depósito identificada por sus últimos 4 dígitos. */
     private static Extraction fromAccount(
             String templateId, MovementDirection direction, CaptureChannel channel, Matcher m) {
-        return Extraction.of(templateId, direction, channel)
+        return Extraction.of(SOURCE,templateId, direction, channel)
                 .amount(m, AmountFormat.ENGLISH, COP)
                 .occurredAt(m)
                 .product(ProductHint.of(BANK, ProductType.DEPOSIT, m.group("last")));
