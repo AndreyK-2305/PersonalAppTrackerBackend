@@ -48,6 +48,36 @@ final class CaptureFakes {
         }
 
         @Override
+        public Optional<CapturedNotification> lockPending(NotificationId id) {
+            return findById(id).filter(CapturedNotification::isPending);
+        }
+
+        @Override
+        public boolean existsByContent(UserId owner, String contentHash) {
+            return stored.values().stream().anyMatch(notification -> notification.owner().equals(owner)
+                    && notification.raw().contentHash().equals(contentHash));
+        }
+
+        @Override
+        public List<NotificationId> findReadyToProcess(Instant receivedBefore, int limit) {
+            return stored.values().stream()
+                    .filter(CapturedNotification::isPending)
+                    .filter(notification -> !notification.createdAt().isAfter(receivedBefore))
+                    .sorted(java.util.Comparator
+                            .comparing((CapturedNotification notification) ->
+                                    notification.raw().app().equalsIgnoreCase("Wallet") ? 1 : 0)
+                            .thenComparing(CapturedNotification::createdAt))
+                    .limit(limit)
+                    .map(CapturedNotification::id)
+                    .toList();
+        }
+
+        @Override
+        public int purgeRawText(Instant receivedBefore, Instant now) {
+            throw new UnsupportedOperationException("Se prueba contra PostgreSQL");
+        }
+
+        @Override
         public List<CapturedNotification> findUnpairedWithMovement(UserId owner, Instant from, Instant to) {
             Set<NotificationId> paired = stored.values().stream()
                     .filter(other -> other.status() == CaptureStatus.PAIRED)

@@ -61,6 +61,26 @@ class CapturedNotificationPersistenceAdapter implements CapturedNotificationRepo
     }
 
     @Override
+    public Optional<CapturedNotification> lockPending(NotificationId id) {
+        return repository.lockPending(id.value()).map(CapturedNotificationPersistenceAdapter::toDomain);
+    }
+
+    @Override
+    public boolean existsByContent(UserId owner, String contentHash) {
+        return repository.existsByUserIdAndContentHash(owner.value(), contentHash);
+    }
+
+    @Override
+    public List<NotificationId> findReadyToProcess(Instant receivedBefore, int limit) {
+        return repository.findReadyToProcess(receivedBefore, limit).stream().map(NotificationId::new).toList();
+    }
+
+    @Override
+    public int purgeRawText(Instant receivedBefore, Instant now) {
+        return repository.purgeRawText(receivedBefore, now);
+    }
+
+    @Override
     public List<CapturedNotification> findUnpairedWithMovement(UserId owner, Instant from, Instant to) {
         return repository.findUnpairedWithMovement(owner.value(), from, to).stream()
                 .map(CapturedNotificationPersistenceAdapter::toDomain)

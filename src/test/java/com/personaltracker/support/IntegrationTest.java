@@ -15,7 +15,9 @@ import org.springframework.context.annotation.Import;
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+// Las tareas programadas de la captura se desactivan: las pruebas las ejecutan a mano.
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = "app.capture.jobs.enabled=false")
 @AutoConfigureRestTestClient
 @Import(TestcontainersConfiguration.class)
 public @interface IntegrationTest {}

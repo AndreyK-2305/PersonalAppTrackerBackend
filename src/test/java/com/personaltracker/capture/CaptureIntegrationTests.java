@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.personaltracker.capture.application.port.out.CapturedNotificationRepository;
 import com.personaltracker.capture.application.usecase.ProcessNotification;
+import com.personaltracker.capture.application.usecase.ProcessPendingNotifications;
+import com.personaltracker.capture.application.usecase.PurgeRawNotifications;
 import com.personaltracker.capture.domain.model.CaptureFootprint;
 import com.personaltracker.capture.domain.model.CaptureSource;
 import com.personaltracker.capture.domain.model.CaptureStatus;
@@ -57,6 +59,12 @@ class CaptureIntegrationTests {
 
     @Autowired
     ProcessNotification processNotification;
+
+    @Autowired
+    ProcessPendingNotifications processPending;
+
+    @Autowired
+    PurgeRawNotifications purgeRaw;
 
     @Autowired
     CapturedNotificationRepository notifications;
@@ -205,6 +213,42 @@ class CaptureIntegrationTests {
 
         assertThatThrownBy(() -> notifications.save(CapturedNotification.receive(NotificationId.newId(), owner,
                 raw, moment))).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void theQueueProcessesOnlyNotificationsThatPassedTheWait() {
+        Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+        String body = "Bancolombia: Compraste COP9.780,00 en TIENDAS ARA con tu T.Cred *1234, el 08/11/2026 a las"
+                + " 08:48. Si tienes dudas.";
+        CapturedNotification settled = CapturedNotification.receive(NotificationId.newId(), owner,
+                new RawNotification("Mensajes", "85540", body, now.minusSeconds(200)), now.minusSeconds(180));
+        CapturedNotification fresh = CapturedNotification.receive(NotificationId.newId(), owner,
+                new RawNotification("Mensajes", "85540", body, now.minusSeconds(30)), now.minusSeconds(30));
+        notifications.save(settled);
+        notifications.save(fresh);
+
+        processPending.execute();
+
+        assertThat(notifications.findById(settled.id()).orElseThrow().status()).isEqualTo(CaptureStatus.RECORDED);
+        assertThat(notifications.findById(fresh.id()).orElseThrow().isPending()).isTrue();
+    }
+
+    @Test
+    void theRawTextIsDeletedAfter45DaysAndTheResultIsKept() {
+        Instant old = Instant.now().minus(46, ChronoUnit.DAYS).truncatedTo(ChronoUnit.MILLIS);
+        Instant recent = Instant.now().minus(44, ChronoUnit.DAYS).truncatedTo(ChronoUnit.MILLIS);
+        CapturedNotification oldOne = recorded(owner, CaptureSource.BANCOLOMBIA_SMS, old, "texto viejo");
+        CapturedNotification recentOne = recorded(owner, CaptureSource.BANCOLOMBIA_SMS, recent, "texto reciente");
+
+        assertThat(purgeRaw.execute()).isGreaterThanOrEqualTo(1);
+
+        CapturedNotification purged = notifications.findById(oldOne.id()).orElseThrow();
+        assertThat(purged.raw().title()).isEmpty();
+        assertThat(purged.raw().body()).isEmpty();
+        assertThat(purged.status()).isEqualTo(CaptureStatus.RECORDED);
+        assertThat(purged.transactionId()).isEqualTo(oldOne.transactionId());
+        assertThat(purged.footprint()).isPresent();
+        assertThat(notifications.findById(recentOne.id()).orElseThrow().raw().body()).isEqualTo("texto reciente");
     }
 
     private CaptureFootprint footprint(CaptureSource source, Instant moment) {

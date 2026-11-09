@@ -30,11 +30,11 @@ Los ejemplos reales están en [formatos-de-notificaciones.md](../capture/formato
   - Mensajes, filtrada por el remitente de Bancolombia;
   - la app de Rappi;
   - Wallet.
-- **Un atajo compartido:** todas las automatizaciones llaman al mismo atajo, que hace `POST /api/capture/notifications` con:
-  - `source`: app o remitente;
-  - `title`;
+- **Un atajo compartido:** todas las automatizaciones llaman al mismo atajo, que hace `POST /api/v1/device/capture/notifications` con:
+  - `app`: app de origen ("Mensajes", "Rappi", "Wallet");
+  - `title`: título o remitente;
   - `body`;
-  - `receivedAt`: la hora del iPhone.
+  - `receivedAt`: la hora del iPhone en ISO 8601 con zona.
 - **El endpoint:**
   - solo valida y guarda;
   - responde `202 Accepted`;
@@ -45,8 +45,11 @@ Los ejemplos reales están en [formatos-de-notificaciones.md](../capture/formato
 - **Dónde vive:** en `identity`, porque es global a la cuenta. Se envía como `Authorization: Bearer`.
 - **Cómo se guarda:** solo su hash SHA-256; el valor se muestra una vez al crearlo.
 - **Gestión:** en Ajustes → Conexiones, con nombre, permisos por herramienta (hoy solo `finance:capture`), fecha de último uso y revocación.
+- **Formato:** `ptd_` más 32 bytes aleatorios en Base64 URL. Como es aleatorio y largo, basta un SHA-256 sin sal, único en la base de datos.
 - **Alcance:**
-  - El token solo sirve para este endpoint; no abre sesión ni da acceso a la API.
+  - Los endpoints de dispositivo viven bajo `/api/v1/device/**`, en una cadena de seguridad propia: sin sesión, sin cookies y sin CSRF.
+  - Cada ruta exige el permiso de su herramienta (`/api/v1/device/capture/**` exige `finance:capture`).
+  - El token no abre sesión ni da acceso al resto de la API, y una sesión del navegador no abre los endpoints de dispositivo.
   - El propietario sale del token, nunca del cuerpo.
 - **Logs:** no registran el token ni el texto de la notificación.
 

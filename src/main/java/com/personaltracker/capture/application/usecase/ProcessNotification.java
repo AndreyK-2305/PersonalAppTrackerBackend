@@ -85,14 +85,13 @@ public class ProcessNotification {
     }
 
     /**
-     * No hace nada si la notificación no existe, ya fue procesada o todavía no pasó la espera: la cola
-     * puede reintentar.
+     * No hace nada si la notificación no existe, ya fue procesada, la está procesando otra instancia
+     * o todavía no pasó la espera: la cola puede reintentar.
      */
     @Transactional
     public void execute(NotificationId id) {
         Instant now = clock.instant();
-        Optional<CapturedNotification> found = notifications.findById(id)
-                .filter(CapturedNotification::isPending)
+        Optional<CapturedNotification> found = notifications.lockPending(id)
                 .filter(pending -> pending.isSettledAt(now));
         if (found.isEmpty()) {
             return;

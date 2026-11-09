@@ -1,8 +1,11 @@
 package com.personaltracker.identity.infrastructure.security;
 
+import com.personaltracker.identity.application.usecase.DeviceTokens;
+import com.personaltracker.identity.domain.model.DeviceScope;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.config.Customizer;
@@ -11,16 +14,20 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
 import org.springframework.web.servlet.HandlerExceptionResolver;
 
 /**
- * Seguridad de la API (ADR-0004):
+ * Seguridad de la API (ADR-0004). Hay dos cadenas: la de dispositivos ({@value #DEVICE_PATHS}, con
+ * token, ADR-0017) y la del navegador, que cubre todo lo demás:
  * <ul>
  *   <li>Todo requiere sesión salvo el inicio de sesión, el registro y las rutas públicas.</li>
  *   <li>Sesión en el servidor (Spring Session JDBC) identificada por una cookie HttpOnly.</li>
@@ -41,7 +48,46 @@ class SecurityConfig {
         "/error"
     };
 
+    /** Endpoints de dispositivo: los llama el atajo del iPhone con un token, no el navegador. */
+    static final String DEVICE_PATHS = "/api/v1/device/**";
+
+    /**
+     * Cadena de los endpoints de dispositivo (ADR-0017): sin sesión, sin cookies y sin CSRF, porque
+     * no los llama un navegador. Solo se autentica con un token de dispositivo, y cada ruta exige el
+     * permiso de su herramienta. Una sesión del navegador no sirve aquí.
+     */
     @Bean
+    @Order(1)
+    SecurityFilterChain deviceFilterChain(
+            HttpSecurity http,
+            DeviceTokens deviceTokens,
+            @Qualifier("handlerExceptionResolver") HandlerExceptionResolver exceptionResolver)
+            throws Exception {
+        http.securityMatcher(DEVICE_PATHS)
+                .csrf(AbstractHttpConfigurer::disable)
+                .cors(AbstractHttpConfigurer::disable)
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .securityContext(context -> context.securityContextRepository(
+                        new RequestAttributeSecurityContextRepository()))
+                .addFilterBefore(new DeviceTokenAuthenticationFilter(deviceTokens), AuthorizationFilter.class)
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/api/v1/device/capture/**")
+                        .hasAuthority(DeviceTokenAuthenticationFilter.SCOPE_PREFIX + DeviceScope.FINANCE_CAPTURE.value())
+                        .anyRequest().denyAll())
+                .httpBasic(AbstractHttpConfigurer::disable)
+                .formLogin(AbstractHttpConfigurer::disable)
+                .logout(AbstractHttpConfigurer::disable)
+                .requestCache(AbstractHttpConfigurer::disable)
+                .exceptionHandling(errors -> errors
+                        .authenticationEntryPoint((request, response, ex) ->
+                                exceptionResolver.resolveException(request, response, null, ex))
+                        .accessDeniedHandler((request, response, ex) ->
+                                exceptionResolver.resolveException(request, response, null, ex)));
+        return http.build();
+    }
+
+    @Bean
+    @Order(2)
     SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             CsrfTokenRepository csrfTokenRepository,

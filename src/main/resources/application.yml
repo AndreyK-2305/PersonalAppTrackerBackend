@@ -59,6 +59,13 @@ app:
   identity:
     # Registro cerrado por defecto (D11). Para crear la primera cuenta, ver ADR-0012.
     registration-enabled: ${REGISTRATION_ENABLED:false}
+  capture:
+    # Cola de notificaciones y limpieza del texto a los 45 días (ADR-0017).
+    jobs:
+      enabled: ${CAPTURE_JOBS_ENABLED:true}
+    worker-interval: ${CAPTURE_WORKER_INTERVAL:PT30S}
+    # TRM oficial (datos abiertos de la Superintendencia Financiera).
+    exchange-rate-url: ${CAPTURE_EXCHANGE_RATE_URL:https://www.datos.gov.co}
 
 logging:
   pattern:

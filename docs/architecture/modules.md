@@ -59,6 +59,8 @@ Contiene solo lo que realmente comparten varios módulos:
 - **API publicada (`identity.api`):**
   - `@CurrentUser`: resuelve el `UserId` de la sesión para los controladores de cualquier módulo.
   - `UserTimeZones`: zona horaria del perfil, para que otros módulos calculen "hoy" y los límites de los periodos. La implementa `ResolveUserTimeZone`.
+- **Tokens de dispositivo (Etapa 4, V10):** `DeviceToken` con permisos `DeviceScope` y secreto `DeviceTokenSecret` (solo se guarda su SHA-256). El caso de uso `DeviceTokens` los crea, lista, revoca y autentica, y `DeviceTokenController` los expone en `/api/v1/me/device-tokens`.
+  - **Seguridad:** `SecurityConfig` tiene una segunda cadena para `/api/v1/device/**`, sin sesión ni CSRF. En ella, `DeviceTokenAuthenticationFilter` deja como principal al dueño (`@CurrentUser` funciona igual) con autoridades `SCOPE_<permiso>`.
   - `PersonNames`: nombres y apellidos legales del perfil (`PersonName`, opcionales, migración V8), que `capture` usa para reconocer transferencias a uno mismo. La implementa `ResolvePersonNames`. Su edición desde el perfil llega en el paso 4 de la Etapa 4.
   - Los otros módulos declaran `allowedDependencies = "identity :: api"`.
 - **Planeado:** el evento `UserDeleted`, cuando exista la eliminación de cuentas (D15).
@@ -107,7 +109,7 @@ Ver [ADR-0011](../decisions/0011-autenticacion-bloqueo-y-contrasenas.md) y [ADR-
 
 ## capture
 
-Etapa 4, ADR-0017. Depende de `shared`, `identity :: api` y `finance :: api`. Falta la entrada (endpoint, token de dispositivo y trabajador de la cola), que llega en el paso 4.
+Etapa 4, ADR-0017. Depende de `shared`, `identity :: api` y `finance :: api`.
 
 - **`domain.model`:**
   - **Notificación:** `RawNotification` (app, título, texto, hora de recepción).
@@ -126,6 +128,11 @@ Etapa 4, ADR-0017. Depende de `shared`, `identity :: api` y `finance :: api`. Fa
     - `OwnKeys`;
     - `ExchangeRates` (TRM de datos.gov.co);
     - `CapturedNotificationRepository`.
+- **Entrada y cola:**
+  - **`ReceiveNotification`:** guarda lo que envía el atajo (`CaptureController`, `POST /api/v1/device/capture/notifications`, 202). Ignora los reenvíos exactos por `content_hash`.
+  - **`ProcessPendingNotifications`:** toma las pendientes que ya pasaron la espera (bancos antes que Wallet) y procesa cada una en su propia transacción con `ProcessNotification`, que la bloquea con `FOR UPDATE SKIP LOCKED`.
+  - **`PurgeRawNotifications`:** borra el título y el texto a los 45 días.
+  - **`CaptureJobs`:** ejecuta la cola cada 30 segundos y la limpieza a las 3:30 (hora de Bogotá). Se desactiva con `app.capture.jobs.enabled=false`, como hacen las pruebas.
 - **Persistencia (`infrastructure.persistence`, migración V9, esquema `capture`):**
   - `notifications`: cola y resultado de cada notificación. Incluye:
     - el texto crudo, que se borra a los 45 días;

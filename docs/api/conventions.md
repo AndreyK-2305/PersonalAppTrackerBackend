@@ -104,6 +104,9 @@ Ver [ADR-0004](../decisions/0004-autenticacion-por-sesion.md) y [ADR-0011](../de
 | GET | `/api/v1/me` | Con sesión | Perfil (401 si no hay sesión) |
 | PATCH | `/api/v1/me` | Con sesión | Actualización parcial: `displayName` y/o `timeZone` |
 | PUT | `/api/v1/me/password` | Con sesión | 204; cierra las demás sesiones |
+| GET | `/api/v1/me/device-tokens` | Con sesión | Tokens de dispositivo, los más recientes primero, incluidos los revocados; nunca el secreto |
+| POST | `/api/v1/me/device-tokens` | Con sesión | `{ name, scopes: ["FINANCE_CAPTURE"] }` → 201 con `{ token, secret }`. El secreto solo aparece aquí |
+| DELETE | `/api/v1/me/device-tokens/{id}` | Con sesión | 204; revocación definitiva |
 
 Códigos de identity:
 
@@ -114,7 +117,22 @@ Códigos de identity:
 | 429 | `too_many_requests` | Límite por IP de nginx en el inicio de sesión y el registro |
 | 403 | `identity.registration_closed` | El registro está cerrado |
 | 409 | `identity.email_already_registered` | El correo ya tiene una cuenta |
-| 422 | `identity.email_invalid`, `identity.password_policy`, `identity.display_name_invalid`, `identity.time_zone_invalid`, `identity.current_password_incorrect` | Reglas de la cuenta |
+| 404 | `identity.device_token_not_found` | El token no existe o es de otro usuario |
+| 422 | `identity.email_invalid`, `identity.password_policy`, `identity.display_name_invalid`, `identity.time_zone_invalid`, `identity.current_password_incorrect`, `identity.device_token_invalid` | Reglas de la cuenta |
+
+### Dispositivos
+
+Los endpoints bajo `/api/v1/device/**` los llama el atajo del iPhone, no el navegador (ADR-0017):
+
+- **Autenticación:** se autentican solo con `Authorization: Bearer <secreto>`, sin sesión, cookies ni CSRF.
+- **Permisos:**
+  - Un token sin el permiso de la ruta responde 403.
+  - Un token ausente, inválido o revocado responde 401.
+  - Una sesión del navegador no sirve.
+
+| Método | Ruta | Permiso | Respuesta |
+|---|---|---|---|
+| POST | `/api/v1/device/capture/notifications` | `FINANCE_CAPTURE` | `{ app, title, body, receivedAt }` → 202 sin cuerpo, también ante un reenvío exacto. `receivedAt` va en ISO 8601 con zona (`2026-11-09T10:31:00-05:00`). Límites: `app` 100, `title` 500 y `body` 4000 caracteres |
 
 ## Documento OpenAPI y tipos del frontend
 
