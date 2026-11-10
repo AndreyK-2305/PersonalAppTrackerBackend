@@ -138,6 +138,10 @@ class TransactionPersistenceAdapter implements TransactionRepository {
             if (search.type() != null) {
                 predicates.add(builder.equal(root.get("type"), search.type().name()));
             }
+            if (search.uncategorized()) {
+                predicates.add(root.get("type").in("INCOME", "EXPENSE"));
+                predicates.add(builder.isNull(root.get("categoryId")));
+            }
             if (search.text() != null) {
                 String pattern = "%" + escapeLike(search.text().toLowerCase(Locale.ROOT)) + "%";
                 predicates.add(builder.or(

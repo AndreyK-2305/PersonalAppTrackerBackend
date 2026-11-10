@@ -71,7 +71,8 @@ class TransactionController {
     /**
      * Filtros opcionales. {@code accountId} incluye los movimientos donde el producto es origen o
      * destino; {@code categoryId} de una categoría principal incluye sus subcategorías; {@code q} busca
-     * en la descripción y el comercio. A igual criterio de orden, los registrados más recientemente
+     * en la descripción y el comercio; {@code uncategorized=true} deja solo los ingresos y gastos sin
+     * categoría ("Por clasificar"). A igual criterio de orden, los registrados más recientemente
      * van primero.
      */
     @GetMapping
@@ -83,6 +84,7 @@ class TransactionController {
             @RequestParam(required = false) UUID categoryId,
             @RequestParam(required = false) TransactionType type,
             @RequestParam(required = false) @Size(max = 100) String q,
+            @RequestParam(defaultValue = "false") boolean uncategorized,
             @Parameter(schema = @Schema(
                             allowableValues = {"date,desc", "date,asc", "amount,desc", "amount,asc"},
                             defaultValue = "date,desc"))
@@ -98,7 +100,8 @@ class TransactionController {
                 type,
                 q,
                 sortOf(sort),
-                new PageQuery(page, size));
+                new PageQuery(page, size),
+                uncategorized);
         return PageResponse.from(listTransactions.execute(query), TransactionResponse::from);
     }
 

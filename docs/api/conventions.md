@@ -199,7 +199,7 @@ Rutas bajo `/api/v1/finance`, todas con sesión. Las que modifican datos requier
 | PATCH | `/categories/{id}` | 204; cambia el nombre |
 | POST | `/categories/{id}/archive` y `/reactivate` | 204; aplican también a las subcategorías |
 | DELETE | `/categories/{id}` | 204; 409 si tiene movimientos o subcategorías |
-| GET | `/transactions` | Página de movimientos. Filtros: `from`, `to`, `accountId` (origen o destino), `categoryId` (incluye subcategorías), `type` y `q` (descripción y comercio) |
+| GET | `/transactions` | Página de movimientos. Filtros: `from`, `to`, `accountId` (origen o destino), `categoryId` (incluye subcategorías), `type`, `q` (descripción y comercio) y `uncategorized=true` (solo ingresos y gastos sin categoría: "Por clasificar") |
 | POST | `/transactions` | 201 con el movimiento |
 | PUT | `/transactions/{id}` | Reemplaza todos los datos; el tipo no cambia |
 | DELETE | `/transactions/{id}` | 204; borrado definitivo |

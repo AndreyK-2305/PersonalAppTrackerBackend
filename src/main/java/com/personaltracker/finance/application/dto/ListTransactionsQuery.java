@@ -8,7 +8,7 @@ import java.time.LocalDate;
 
 /**
  * Filtros del listado de movimientos; un filtro nulo no se aplica. Filtrar por una categoría principal
- * incluye sus subcategorías.
+ * incluye sus subcategorías. {@code uncategorized} deja solo los ingresos y gastos sin categoría.
  */
 public record ListTransactionsQuery(
         UserId owner,
@@ -19,4 +19,19 @@ public record ListTransactionsQuery(
         TransactionType type,
         String text,
         TransactionSort sort,
-        PageQuery page) {}
+        PageQuery page,
+        boolean uncategorized) {
+
+    public ListTransactionsQuery(
+            UserId owner,
+            LocalDate from,
+            LocalDate to,
+            AccountId account,
+            CategoryId category,
+            TransactionType type,
+            String text,
+            TransactionSort sort,
+            PageQuery page) {
+        this(owner, from, to, account, category, type, text, sort, page, false);
+    }
+}

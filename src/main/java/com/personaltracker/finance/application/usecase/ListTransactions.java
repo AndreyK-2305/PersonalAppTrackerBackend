@@ -46,7 +46,8 @@ public class ListTransactions {
             accounts.require(query.account(), owner);
         }
         TransactionSearch search = new TransactionSearch(query.from(), query.to(), query.account(),
-                categoryWithChildren(query.category(), owner), query.type(), normalized(query.text()));
+                categoryWithChildren(query.category(), owner), query.type(), normalized(query.text()),
+                query.uncategorized());
         TransactionSort sort = query.sort() == null ? TransactionSort.DATE_DESC : query.sort();
         return transactions.search(owner, search, sort, query.page()).map(TransactionView::of);
     }

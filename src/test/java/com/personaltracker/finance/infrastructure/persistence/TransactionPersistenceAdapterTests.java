@@ -161,6 +161,17 @@ class TransactionPersistenceAdapterTests {
     }
 
     @Test
+    void uncategorizedKeepsOnlyIncomesAndExpensesWithoutCategory() {
+        save(Expense.record(TransactionId.newId(), owner, card, null, cop("10000"), on(NOV_6), NOW.plusSeconds(1)));
+        save(Expense.record(TransactionId.newId(), owner, card, food, cop("20000"), on(NOV_6), NOW.plusSeconds(2)));
+        save(Income.record(TransactionId.newId(), owner, bank, null, cop("30000"), on(NOV_6), NOW.plusSeconds(3)));
+        save(Transfer.record(TransactionId.newId(), owner, bank, card, cop("40000"), on(NOV_6), NOW.plusSeconds(4)));
+
+        assertThat(amounts(new TransactionSearch(null, null, null, null, null, null, true)))
+                .containsExactly("30000.00", "10000.00");
+    }
+
+    @Test
     void sortsAndPaginatesStably() {
         for (int day = 1; day <= 5; day++) {
             save(Expense.record(TransactionId.newId(), owner, card, null, cop(day + "000"), on(NOV_6.minusDays(day)),
