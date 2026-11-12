@@ -1,6 +1,10 @@
 # Uso:
 #   docker compose up -d                      solo PostgreSQL, para desarrollo local
 #   docker compose --profile full up --build  PostgreSQL + backend + frontend (http://localhost:8091)
+#                                             + copia diaria de la base en BACKUP_DIR
+#   docker compose --profile full --profile tunnel up -d --build --wait
+#                                             lo anterior + Cloudflare Tunnel: la app publicada en
+#                                             tu dominio desde este equipo (docs/despliegue/equipo-propio.md)
 # Las variables se leen de .env (ver .env.example); los valores por defecto son solo para desarrollo.
 # Puertos en el host: PostgreSQL 5434, backend 8090 y frontend 8091, para no chocar con otros
 # proyectos locales que usan 5432/8080.
@@ -9,6 +13,7 @@ name: personal-tracker
 services:
   postgres:
     image: postgres:18.6-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${DB_NAME:-personal_tracker}
       POSTGRES_USER: ${DB_USERNAME:-personal_tracker}
@@ -27,6 +32,7 @@ services:
   backend:
     profiles: [full]
     build: .
+    restart: unless-stopped
     environment:
       SPRING_PROFILES_ACTIVE: prod
       DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-personal_tracker}
@@ -35,6 +41,7 @@ services:
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
       REGISTRATION_ENABLED: ${REGISTRATION_ENABLED:-false}
       SESSION_TIMEOUT: ${SESSION_TIMEOUT:-60m}
+      CAPTURE_JOBS_ENABLED: ${CAPTURE_JOBS_ENABLED:-true}
     ports:
       - "127.0.0.1:${BACKEND_PORT:-8090}:8080"
     depends_on:
@@ -52,6 +59,7 @@ services:
   frontend:
     profiles: [full]
     build: ../frontend
+    restart: unless-stopped
     environment:
       BACKEND_URL: http://backend:8080
     ports:
@@ -64,6 +72,40 @@ services:
       interval: 10s
       timeout: 5s
       retries: 6
+
+  # Copia diaria de la base (formato custom de pg_dump) en BACKUP_DIR; conserva BACKUP_KEEP_DAYS días.
+  backup:
+    profiles: [full]
+    image: postgres:18.6-alpine
+    restart: unless-stopped
+    environment:
+      PGHOST: postgres
+      PGDATABASE: ${DB_NAME:-personal_tracker}
+      PGUSER: ${DB_USERNAME:-personal_tracker}
+      PGPASSWORD: ${DB_PASSWORD:-personal_tracker}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+    volumes:
+      - ./scripts/backup.sh:/usr/local/bin/backup.sh:ro
+      - ${BACKUP_DIR:-./backups}:/backups
+    entrypoint: ["/bin/sh", "/usr/local/bin/backup.sh"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Cloudflare Tunnel: conexión saliente hacia Cloudflare, sin abrir puertos en el router. El
+  # nombre público (por ejemplo cuadre.click) y su destino (http://frontend:8080) se configuran en
+  # el panel de Cloudflare; aquí solo va el token del túnel.
+  tunnel:
+    profiles: [tunnel]
+    image: cloudflare/cloudflared:2026.10.7
+    restart: unless-stopped
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      # Obligatorio con el perfil tunnel; sin él, cloudflared no arranca (el resto sigue funcionando).
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
+    depends_on:
+      frontend:
+        condition: service_healthy
 
 volumes:
   postgres-data:

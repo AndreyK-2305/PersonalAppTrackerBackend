@@ -37,5 +37,9 @@ logs/
 Thumbs.db
 desktop.ini
 
-# Copias de la base en el servidor (deploy/compose.yml)
-deploy/backups/
+
+# Despliegue futuro en Oracle Cloud (se conserva solo en local; ver PROJECT_CONTEXT §16)
+deploy/
+docs/despliegue/oracle-cloud.md
+# Copias de la base del perfil full (docker-compose.yml)
+backups/
