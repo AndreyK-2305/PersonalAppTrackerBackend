@@ -117,6 +117,8 @@ Usa `@IntegrationTest` en toda prueba de integración nueva, para que Spring reu
 - [Glosario de dominio](docs/architecture/domain-glossary.md)
 - [Convenciones de la API](docs/api/conventions.md)
 - [Decisiones de arquitectura (ADR)](docs/decisions/README.md)
+- [Formatos de notificaciones de la captura](docs/capture/formatos-de-notificaciones.md)
+- [Despliegue en Oracle Cloud y Netlify](docs/despliegue/oracle-cloud.md) (carpeta `deploy/`)
 
 ## Contribución
 

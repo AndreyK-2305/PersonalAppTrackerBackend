@@ -29,7 +29,22 @@ Todas empiezan con `Bancolombia: `.
 
 ## Apple Wallet
 
-Todavía no hay ejemplo de **notificación**. El 2026-11-09 el usuario compartió el **historial** de transacciones de su tarjeta de crédito Bancolombia en Wallet, y de él se ven tres cosas:
+Notificación al pagar con Apple Pay (ejemplos del 2026-11-11):
+
+| Id | App | Título | Cuerpo | Resultado |
+|---|---|---|---|---|
+| W1 | `Wallet` (o `Cartera`) | Emisor: `BANCOLOMBIA`, `RappiCard` | `{comercio}. {ciudad}, {departamento}` y en otra línea `$ {monto_es_entero}`; la ciudad puede faltar (`Temu\n$ 94.385`) | Gasto · medio `CARD` · producto: cualquier tarjeta o cuenta de ese emisor (`PAYMENT_CARD`) |
+
+- **Lo que no trae:**
+  - **Hora:** se usa la de recepción.
+  - **Últimos dígitos.**
+  - **Crédito o débito:** el nombre de la tarjeta ("Única Virtual") solo aparece al abrir el detalle.
+- **Producto:** con un solo producto de ese banco se registra en él. Con varios queda en "Otro" y va a revisión, salvo que se empareje antes.
+- **Emparejamiento (ADR-0017):** un aviso W1 se empareja con el SMS del banco si el producto del SMS está entre las tarjetas y cuentas de ese emisor, tienen el mismo monto y llegaron con menos de 5 minutos de diferencia. Como la cola procesa los bancos antes que Wallet, lo normal es que Wallet quede emparejado y el movimiento lleve los datos del SMS.
+- **Limitación conocida:** si el SMS llega más de 2 minutos después y el aviso de Wallet ya quedó en "Otro" (porque hay varios productos de ese banco), el SMS no se empareja con él. La compra queda dos veces y el aviso de Wallet aparece "Por revisar" para descartarlo.
+- **Emisor sin analizador:** el aviso queda como no reconocido.
+
+El 2026-11-09 el usuario compartió también el **historial** de transacciones de su tarjeta Bancolombia en Wallet, y de él se ven tres cosas:
 
 - **Qué compras aparecen:** todas las de la tarjeta, no solo las hechas con Apple Pay. Las físicas muestran la ciudad, y las de Apple Pay dicen "Apple Pay".
 - **Monto:** con punto de miles, sin decimales (`$ 9.980`), es decir, el formato `SPANISH`.
@@ -41,7 +56,7 @@ Todavía no hay ejemplo de **notificación**. El 2026-11-09 el usuario comparti�
   | `Tiendas Ara` | `TIENDAS ARA` |
   | `Eds Los Libertadores` | `EDS LOS LIBERTADORES` |
 
-Si Wallet también notifica cada compra, una compra con la tarjeta llega dos veces (SMS y Wallet). Se resuelve con la espera de 2 minutos y el emparejamiento por fuente, producto y monto (ADR-0017). Para eso, la notificación de Wallet debe permitir identificar la tarjeta (entidad y, si los trae, últimos 4 dígitos).
+Como Wallet notifica las compras con Apple Pay, una compra llega dos veces (SMS y Wallet). Se resuelve con la espera de 2 minutos y el emparejamiento descrito en W1.
 
 ## Formatos de monto
 
@@ -49,7 +64,7 @@ Los textos usan cuatro variantes, que se reducen a dos formatos (`AmountFormat`)
 
 | Formato | Ejemplos | Plantillas |
 |---|---|---|
-| `SPANISH`: punto de miles, coma decimal | `COP25.005,00`, `USD20,00`, `$ 13.300` | B1, B1b, B1c, R1 |
+| `SPANISH`: punto de miles, coma decimal | `COP25.005,00`, `USD20,00`, `$ 13.300`, `$ 7.900` | B1, B1b, B1c, R1, W1 |
 | `ENGLISH`: coma de miles, punto decimal | `$6,500.00`, `$480,000` | B2 a B7 |
 
 - **Grupos de miles:** siempre son de 3 dígitos.

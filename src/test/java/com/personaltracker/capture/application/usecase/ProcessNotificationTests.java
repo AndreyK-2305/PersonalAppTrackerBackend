@@ -13,9 +13,7 @@ import com.personaltracker.capture.domain.model.OwnedProductKind;
 import com.personaltracker.capture.domain.model.OwnerName;
 import com.personaltracker.capture.domain.model.RawNotification;
 import com.personaltracker.capture.domain.model.ReviewReason;
-import com.personaltracker.capture.domain.parsing.BancolombiaSmsParser;
 import com.personaltracker.capture.domain.parsing.NotificationParsers;
-import com.personaltracker.capture.domain.parsing.RappiPushParser;
 import com.personaltracker.shared.domain.UserId;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -48,8 +46,7 @@ class ProcessNotificationTests {
     private final CaptureFakes.Rates rates = new CaptureFakes.Rates();
     private final CaptureFakes.RecordingLedger ledger = new CaptureFakes.RecordingLedger();
 
-    private final NotificationParsers parsers = new NotificationParsers(
-            List.of(new BancolombiaSmsParser(), new RappiPushParser(), new FakeWalletParser()));
+    private final NotificationParsers parsers = NotificationParsers.all();
 
     private final ProcessNotification useCase = new ProcessNotification(notifications, parsers,
             products, owners, keys, rates, ledger, Clock.fixed(NOW, ZoneOffset.UTC));
@@ -87,9 +84,13 @@ class ProcessNotificationTests {
         return notifications.findById(notification.id()).orElseThrow();
     }
 
-    /** Aviso de Wallet de prueba ({@link FakeWalletParser}) recibido a la hora local de Bogotá indicada. */
-    private CapturedNotification wallet(String amount, String merchant, String digits, String bogotaTime) {
-        return processAt("Wallet", merchant, amount + "|" + digits, bogota(bogotaTime));
+    /**
+     * Aviso de Apple Wallet de una tarjeta Bancolombia, como lo entrega el iPhone (sin hora ni dígitos),
+     * recibido a la hora local de Bogotá indicada.
+     */
+    private CapturedNotification wallet(String amount, String merchant, String bogotaTime) {
+        return processAt("Wallet", "BANCOLOMBIA", merchant + ". Cúcuta, Norte De Santander\n$ " + amount,
+                bogota(bogotaTime));
     }
 
     private static Instant bogota(String time) {
@@ -306,22 +307,51 @@ class ProcessNotificationTests {
     @Nested
     class SamePurchaseFromSeveralSources {
 
+        /** Solo la tarjeta de crédito de Bancolombia: Wallet la identifica sin ayuda del SMS. */
+        private void onlyTheBancolombiaCard() {
+            products.active.put(owner, List.of(product(creditCard, OwnedProductKind.CREDIT_CARD, "Bancolombia", "1234")));
+        }
+
         @Test
-        void walletRepeatingTheSmsIsPairedAndRecordsNothing() {
+        void walletRepeatingTheSmsIsPairedWithTheProductOfTheSms() {
             CapturedNotification sms = sms(cardPurchase("9.980,00", "TIENDA D1 LOS SANTOS", "10:18"));
-            CapturedNotification wallet = wallet("9.980", "D1 - Antonia Santos", "1234", "10:19");
+            CapturedNotification wallet = wallet("9.980", "D1 - Antonia Santos", "10:19");
 
             assertThat(sms.status()).isEqualTo(CaptureStatus.RECORDED);
             assertThat(wallet.status()).isEqualTo(CaptureStatus.PAIRED);
             assertThat(wallet.pairedWith()).contains(sms.id());
+            assertThat(wallet.footprint()).hasValueSatisfying(
+                    footprint -> assertThat(footprint.productId()).isEqualTo(creditCard));
             assertThat(wallet.transactionId()).isEmpty();
             assertThat(ledger.recorded).hasSize(1);
             assertThat(ledger.last().merchant()).isEqualTo("TIENDA D1 LOS SANTOS");
         }
 
         @Test
+        void walletAloneWithSeveralBancolombiaProductsGoesToOtherForReview() {
+            CapturedNotification wallet = wallet("7.900", "Drogueria Santiago For Ever", "19:54");
+
+            assertThat(wallet.status()).isEqualTo(CaptureStatus.REVIEW);
+            assertThat(wallet.reviewReason()).contains(ReviewReason.AMBIGUOUS_PRODUCT);
+            assertThat(ledger.last().source()).contains(products.otherProduct(owner));
+            assertThat(ledger.last().merchant()).isEqualTo("Drogueria Santiago For Ever");
+        }
+
+        @Test
+        void walletAloneWithASingleBancolombiaCardIsRecorded() {
+            onlyTheBancolombiaCard();
+
+            CapturedNotification wallet = wallet("7.900", "Drogueria Santiago For Ever", "19:54");
+
+            assertThat(wallet.status()).isEqualTo(CaptureStatus.RECORDED);
+            assertThat(ledger.last().source()).contains(creditCard);
+            assertThat(ledger.last().date()).isEqualTo(LocalDate.of(2026, 11, 8));
+        }
+
+        @Test
         void aLateSmsIsPairedWithTheWalletPurchaseAlreadyRecorded() {
-            CapturedNotification wallet = wallet("9.780", "Tiendas Ara", "1234", "08:49");
+            onlyTheBancolombiaCard();
+            CapturedNotification wallet = wallet("9.780", "Tiendas Ara", "08:49");
             CapturedNotification sms = sms(cardPurchase("9.780,00", "TIENDAS ARA", "08:48"));
 
             assertThat(wallet.status()).isEqualTo(CaptureStatus.RECORDED);
@@ -336,9 +366,9 @@ class ProcessNotificationTests {
                     sms(cardPurchase("5.000,00", "TIENDAS ARA", "08:48")),
                     sms(cardPurchase("5.000,00", "TIENDAS ARA", "08:49")));
             List<CapturedNotification> walletNotices = List.of(
-                    wallet("5.000", "Tiendas Ara", "1234", "08:48"),
-                    wallet("5.000", "Tiendas Ara", "1234", "08:49"),
-                    wallet("5.000", "Tiendas Ara", "1234", "08:49"));
+                    wallet("5.000", "Tiendas Ara", "08:48"),
+                    wallet("5.000", "Tiendas Ara", "08:49"),
+                    wallet("5.000", "Tiendas Ara", "08:49"));
 
             assertThat(smsNotices).allMatch(notice -> notice.status() == CaptureStatus.RECORDED);
             assertThat(walletNotices).allMatch(notice -> notice.status() == CaptureStatus.PAIRED);
@@ -350,10 +380,11 @@ class ProcessNotificationTests {
         @Test
         void moreWalletNoticesThanSmsLeaveTheExtraAsANewPurchase() {
             sms(cardPurchase("5.000,00", "TIENDAS ARA", "08:48"));
-            wallet("5.000", "Tiendas Ara", "1234", "08:48");
-            CapturedNotification extra = wallet("5.000", "Tiendas Ara", "1234", "08:49");
+            wallet("5.000", "Tiendas Ara", "08:48");
+            CapturedNotification extra = wallet("5.000", "Tiendas Ara", "08:49");
 
-            assertThat(extra.status()).isEqualTo(CaptureStatus.RECORDED);
+            assertThat(extra.status()).isNotEqualTo(CaptureStatus.PAIRED);
+            assertThat(extra.transactionId()).isPresent();
             assertThat(ledger.recorded).hasSize(2);
         }
 
@@ -371,17 +402,23 @@ class ProcessNotificationTests {
         void walletWithoutCentsMatchesTheSmsAmount() {
             sms(cardPurchase("25.005,50", "EDS LOS LIBERTADORES", "16:44"));
 
-            assertThat(wallet("25.005", "Eds Los Libertadores", "1234", "16:45").status())
+            assertThat(wallet("25.005", "Eds Los Libertadores", "16:45").status())
                     .isEqualTo(CaptureStatus.PAIRED);
         }
 
         @Test
-        void anotherAmountProductOrMomentIsAnotherPurchase() {
+        void anotherAmountOrMomentIsAnotherPurchase() {
             sms(cardPurchase("9.780,00", "TIENDAS ARA", "08:48"));
 
-            assertThat(wallet("9.790", "Tiendas Ara", "1234", "08:48").status()).isEqualTo(CaptureStatus.RECORDED);
-            assertThat(wallet("9.780", "Tiendas Ara", "4321", "08:48").status()).isEqualTo(CaptureStatus.RECORDED);
-            assertThat(wallet("9.780", "Tiendas Ara", "1234", "08:54").status()).isEqualTo(CaptureStatus.RECORDED);
+            assertThat(wallet("9.790", "Tiendas Ara", "08:48").status()).isNotEqualTo(CaptureStatus.PAIRED);
+            assertThat(wallet("9.780", "Tiendas Ara", "08:54").status()).isNotEqualTo(CaptureStatus.PAIRED);
+        }
+
+        @Test
+        void aPurchaseOfAnotherBankIsNeverPaired() {
+            process("Rappi", "RappiCard | Compra exitosa", "Tu compra en TIENDAS ARA por $ 9.780 fue exitosa.");
+
+            assertThat(wallet("9.780", "Tiendas Ara", "09:00").status()).isNotEqualTo(CaptureStatus.PAIRED);
         }
 
         @Test
@@ -389,7 +426,7 @@ class ProcessNotificationTests {
             sms("Bancolombia: Compraste COP9.780,00 en TIENDAS ARA con tu T.Cred *4321, el 08/11/2026 a las 08:48."
                     + " Si tienes dudas.");
 
-            assertThat(wallet("9.780", "Tiendas Ara", "4321", "08:48").status()).isEqualTo(CaptureStatus.RECORDED);
+            assertThat(wallet("9.780", "Tiendas Ara", "08:48").status()).isNotEqualTo(CaptureStatus.PAIRED);
             assertThat(ledger.recorded).hasSize(2);
         }
 

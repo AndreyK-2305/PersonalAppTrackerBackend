@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.personaltracker.capture.domain.model.CaptureChannel;
 import com.personaltracker.capture.domain.model.CaptureInstitution;
+import com.personaltracker.capture.domain.model.CaptureSource;
 import com.personaltracker.capture.domain.model.MovementDirection;
 import com.personaltracker.capture.domain.model.ParseOutcome;
 import com.personaltracker.capture.domain.model.ParsedMovement;
@@ -263,6 +264,57 @@ class NotificationParsersTests {
         void otherRappiNotificationsAreUnrecognized() {
             assertThat(parsers.parse(new RawNotification("Rappi", "¡Tu pedido va en camino!",
                     "Tu domiciliario ya recogió tu pedido.", RECEIVED)))
+                    .isEqualTo(new ParseOutcome.Unrecognized());
+        }
+    }
+
+    @Nested
+    class AppleWallet {
+
+        private RawNotification wallet(String title, String body) {
+            return new RawNotification("Wallet", title, body, RECEIVED);
+        }
+
+        @Test
+        void purchaseWithCityKeepsOnlyTheMerchantAndUsesTheReceptionTime() {
+            ParsedMovement movement = recognized(
+                    wallet("BANCOLOMBIA", "Drogueria Santiago For Ever. Cúcuta, Norte De Santander\n$ 7.900"));
+
+            assertThat(movement.templateId()).isEqualTo(WalletPushParser.PURCHASE);
+            assertThat(movement.source()).isEqualTo(CaptureSource.APPLE_WALLET);
+            assertThat(movement.direction()).isEqualTo(MovementDirection.OUTFLOW);
+            assertThat(movement.amount().amount()).isEqualByComparingTo("7900");
+            assertThat(movement.counterparty()).isEqualTo("Drogueria Santiago For Ever");
+            assertThat(movement.product()).isEqualTo(
+                    ProductHint.withoutDigits(CaptureInstitution.BANCOLOMBIA, ProductType.PAYMENT_CARD));
+            assertThat(movement.occurredAt()).isEmpty();
+            assertThat(movement.channel()).isEqualTo(CaptureChannel.CARD);
+        }
+
+        @Test
+        void purchaseWithoutCity() {
+            ParsedMovement movement = recognized(wallet("BANCOLOMBIA", "Temu\n$ 94.385"));
+
+            assertThat(movement.counterparty()).isEqualTo("Temu");
+            assertThat(movement.amount().amount()).isEqualByComparingTo("94385");
+        }
+
+        @Test
+        void theIssuerComesFromTheTitle() {
+            ParsedMovement movement = recognized(wallet("RappiCard", "Jhon Pastel. Cúcuta, Norte De Santander\n$ 13.300"));
+
+            assertThat(movement.product().institution()).isEqualTo(CaptureInstitution.RAPPI);
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = {"Banco Desconocido", ""})
+        void anIssuerWithoutParserIsUnrecognized(String title) {
+            assertThat(parsers.parse(wallet(title, "Tienda. Cúcuta\n$ 7.900"))).isEqualTo(new ParseOutcome.Unrecognized());
+        }
+
+        @Test
+        void anAmountInAnotherFormatIsUnrecognized() {
+            assertThat(parsers.parse(wallet("BANCOLOMBIA", "Tienda. Cúcuta\n$ 7,900.00")))
                     .isEqualTo(new ParseOutcome.Unrecognized());
         }
     }

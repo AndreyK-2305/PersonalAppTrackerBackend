@@ -30,21 +30,30 @@ public sealed interface ProductResolution {
 
     record Ambiguous() implements ProductResolution {}
 
-    static ProductResolution resolve(ProductHint hint, List<OwnedProduct> products) {
+    public static ProductResolution resolve(ProductHint hint, List<OwnedProduct> products) {
+        List<UUID> candidates = candidates(hint, products);
+        return switch (candidates.size()) {
+            case 0 -> new Unmatched();
+            case 1 -> new Matched(candidates.getFirst());
+            default -> new Ambiguous();
+        };
+    }
+
+    /**
+     * Los productos activos que coinciden con la pista. Sirve también para emparejar: un aviso de
+     * Wallet, que solo nombra al banco, es la misma compra que un SMS de uno de estos productos.
+     */
+    public static List<UUID> candidates(ProductHint hint, List<OwnedProduct> products) {
         String institution = simplify(hint.institution().displayName());
-        List<OwnedProduct> candidates = products.stream()
+        return products.stream()
                 .filter(product -> product.kind().isOfType(hint.type()))
                 .filter(product -> product.institution().map(ProductResolution::simplify)
                         .filter(name -> name.contains(institution))
                         .isPresent())
                 .filter(product -> hint.lastFourDigits().isEmpty()
                         || hint.lastFourDigits().equals(product.lastFourDigits()))
+                .map(OwnedProduct::id)
                 .toList();
-        return switch (candidates.size()) {
-            case 0 -> new Unmatched();
-            case 1 -> new Matched(candidates.getFirst().id());
-            default -> new Ambiguous();
-        };
     }
 
     private static String simplify(String text) {

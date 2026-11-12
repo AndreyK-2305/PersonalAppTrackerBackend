@@ -18,7 +18,7 @@ public final class NotificationParsers {
     }
 
     public static NotificationParsers all() {
-        return new NotificationParsers(List.of(new BancolombiaSmsParser(), new RappiPushParser()));
+        return new NotificationParsers(List.of(new BancolombiaSmsParser(), new RappiPushParser(), new WalletPushParser()));
     }
 
     public ParseOutcome parse(RawNotification notification) {

@@ -111,6 +111,10 @@ Decidido por el usuario el 2026-11-09, después de comparar el historial de Wall
   - Tres compras iguales seguidas son tres SMS y tres avisos de Wallet: quedan tres movimientos.
   - Dos avisos de la **misma fuente** nunca se emparejan, porque son compras distintas.
 - **Producto sin identificar:** no se empareja, porque "Otro" agrupa productos distintos.
+- **Producto por candidatos (2026-11-12):** un aviso se empareja si el producto del otro está entre sus candidatos.
+  - El aviso de Apple Wallet solo nombra al emisor, así que sus candidatos son todas las tarjetas y cuentas de ese banco (`PAYMENT_CARD`); el SMS dice cuál fue.
+  - El aviso emparejado toma el producto del otro.
+  - Formato W1 en el catálogo.
 
 ### Transferencias a productos propios (B3)
 

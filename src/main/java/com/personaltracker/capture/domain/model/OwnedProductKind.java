@@ -11,6 +11,7 @@ public enum OwnedProductKind {
         return switch (type) {
             case CREDIT_CARD -> this == CREDIT_CARD;
             case DEPOSIT -> this == DEPOSIT;
+            case PAYMENT_CARD -> this == CREDIT_CARD || this == DEPOSIT;
         };
     }
 }

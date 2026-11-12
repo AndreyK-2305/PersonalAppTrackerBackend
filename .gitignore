@@ -36,3 +36,6 @@ logs/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Copias de la base en el servidor (deploy/compose.yml)
+deploy/backups/

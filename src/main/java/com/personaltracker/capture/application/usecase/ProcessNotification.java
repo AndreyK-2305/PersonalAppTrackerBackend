@@ -150,13 +150,16 @@ public class ProcessNotification {
         ReviewReason reason = resolution instanceof ProductResolution.Ambiguous ? ReviewReason.AMBIGUOUS_PRODUCT : null;
 
         CaptureFootprint footprint = new CaptureFootprint(product, amount.get(), movement.source(), occurredAt);
-        // Solo se empareja sobre un producto identificado: "Otro" agrupa productos distintos.
-        if (resolution instanceof ProductResolution.Matched) {
-            Optional<CapturedNotification> counterpart = samePurchase(notification, footprint);
-            if (counterpart.isPresent()) {
-                notification.markPaired(counterpart.get(), footprint, now);
-                return;
-            }
+        // Se empareja con un aviso de otra fuente cuyo producto sea uno de los candidatos de este. Un
+        // aviso de Wallet solo nombra al banco: sus candidatos son las tarjetas y cuentas de ese banco,
+        // y el SMS dice cuál. Nunca se empareja sobre "Otro", que agrupa productos distintos.
+        List<UUID> candidates = ProductResolution.candidates(movement.product(), active);
+        Optional<CapturedNotification> counterpart = samePurchase(notification, footprint, candidates);
+        if (counterpart.isPresent()) {
+            CaptureFootprint counterpartFootprint = counterpart.get().footprint().orElseThrow();
+            notification.markPaired(counterpart.get(), new CaptureFootprint(
+                    counterpartFootprint.productId(), amount.get(), movement.source(), occurredAt), now);
+            return;
         }
 
         EntryType type;
@@ -191,12 +194,27 @@ public class ProcessNotification {
         }
     }
 
-    /** El aviso de otra fuente, sin emparejar, que registró la misma compra; el más cercano en el tiempo. */
-    private Optional<CapturedNotification> samePurchase(CapturedNotification notification, CaptureFootprint footprint) {
+    /**
+     * El aviso de otra fuente, sin emparejar, que registró la misma compra en uno de los productos
+     * candidatos; el más cercano en el tiempo.
+     */
+    private Optional<CapturedNotification> samePurchase(
+            CapturedNotification notification, CaptureFootprint footprint, List<UUID> candidateProducts) {
+        if (candidateProducts.isEmpty()) {
+            return Optional.empty();
+        }
         return notifications.findUnpairedWithMovement(notification.owner(), footprint).stream()
-                .filter(candidate -> !candidate.id().equals(notification.id()))
-                .filter(candidate -> candidate.footprint().filter(footprint::isSamePurchaseAs).isPresent())
-                .min(Comparator.comparing(candidate -> candidate.footprint().orElseThrow().distanceTo(footprint)));
+                .filter(other -> !other.id().equals(notification.id()))
+                .filter(other -> other.footprint()
+                        .filter(theirs -> candidateProducts.contains(theirs.productId()))
+                        .filter(theirs -> asIf(footprint, theirs.productId()).isSamePurchaseAs(theirs))
+                        .isPresent())
+                .min(Comparator.comparing(other -> other.footprint().orElseThrow().distanceTo(footprint)));
+    }
+
+    /** La huella con otro producto, para compararla con la de un aviso de un producto candidato. */
+    private static CaptureFootprint asIf(CaptureFootprint footprint, UUID productId) {
+        return new CaptureFootprint(productId, footprint.amount(), footprint.source(), footprint.occurredAt());
     }
 
     private boolean isOwnName(UserId owner, ParsedMovement movement) {
