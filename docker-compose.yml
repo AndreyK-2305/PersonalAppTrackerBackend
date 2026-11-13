@@ -93,7 +93,7 @@ services:
         condition: service_healthy
 
   # Cloudflare Tunnel: conexión saliente hacia Cloudflare, sin abrir puertos en el router. El
-  # nombre público (por ejemplo cuadre.click) y su destino (http://frontend:8080) se configuran en
+  # nombre público (track.cuadre.click) y su destino (http://frontend:8080) se configuran en
   # el panel de Cloudflare; aquí solo va el token del túnel.
   tunnel:
     profiles: [tunnel]
