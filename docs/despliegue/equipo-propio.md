@@ -102,22 +102,25 @@ Después, en la app:
 ## 6. Atajo del iPhone
 
 1. **Token:** créalo en **Ajustes → Conexiones** y cópialo. Solo se muestra una vez.
-2. **Atajo "Enviar a Personal Tracker":** recibe la notificación como entrada y usa la acción **Obtener contenido de URL**:
-   - **URL:** `https://track.cuadre.click/api/v1/device/capture/notifications`
-   - **Método:** POST
-   - **Encabezados:**
-     - `Authorization`: `Bearer <token>`
-     - `Content-Type`: `application/json`
-   - **Cuerpo (JSON):**
-     - `app`: la app de la notificación ("Mensajes", "Rappi", "Wallet");
-     - `title`: el título o remitente;
-     - `body`: el texto;
-     - `receivedAt`: la fecha actual en **ISO 8601** con la hora.
-3. **Automatizaciones:** crea una de tipo "Al recibir una notificación" por cada fuente. Cada una debe ejecutar el atajo de inmediato, sin confirmación y con "Notificar al ejecutar" desactivado:
-   - Mensajes, solo para el remitente 85540 de Bancolombia;
-   - Rappi;
-   - Wallet.
-4. **Prueba:** haz una compra pequeña. A los 2 minutos debe aparecer en Movimientos como "Captado".
+   - El mismo diálogo trae el **paso a paso del atajo**. También está en el botón **Guía del atajo** de esa página.
+   - **Copiar instrucciones para Siri** copia la descripción completa, con un marcador en lugar del token, para pedirle a Siri que cree el atajo.
+2. **Atajo "Enviar a Personal Tracker":** recibe un diccionario con `app`, `title` y `body`, y hace dos acciones:
+   1. **Formatear fecha:** la fecha actual, en ISO 8601 y con la hora.
+   2. **Obtener contenido de URL:**
+      - **URL:** `https://track.cuadre.click/api/v1/device/capture/notifications`
+      - **Método:** POST
+      - **Encabezados:** `Authorization: Bearer <token>` y `Content-Type: application/json`
+      - **Cuerpo (JSON):** `app`, `title` y `body` de la entrada, y `receivedAt` con la fecha formateada.
+3. **Automatizaciones:** una por fuente, que se ejecuta de inmediato, sin confirmación y con "Notificar al ejecutar" desactivado. Cada una llama al atajo con:
+
+   | Fuente | Disparador | `app` | `title` | `body` |
+   |---|---|---|---|---|
+   | SMS de Bancolombia | Mensaje, remitente 85540 | `Mensajes` | el remitente | el contenido del mensaje |
+   | Rappi | Notificación de la app Rappi | `Rappi` | el título | el texto |
+   | Apple Wallet | Notificación de la app Wallet | `Wallet` | el título (el banco) | el texto |
+
+   El valor de `app` debe ser exactamente ese: los analizadores lo usan para reconocer la fuente.
+4. **Prueba:** haz una compra pequeña. A los 2 minutos debe aparecer en Movimientos como "Captado", y en Conexiones cambia el "Último uso" del dispositivo.
 
 ## Operación
 
