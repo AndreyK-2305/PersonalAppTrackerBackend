@@ -2,6 +2,7 @@ package com.personaltracker.finance.infrastructure.web;
 
 import com.personaltracker.finance.domain.model.SupportedCurrencies;
 import com.personaltracker.shared.domain.Money;
+import com.personaltracker.shared.infrastructure.web.ApiFormats;
 import java.math.BigDecimal;
 
 /**
@@ -11,12 +12,12 @@ import java.math.BigDecimal;
 final class Amounts {
 
     /** Monto no negativo, por ejemplo {@code "150000.50"}. */
-    static final String UNSIGNED = "^[0-9]{1,17}(\\.[0-9]{1,2})?$";
+    static final String UNSIGNED = ApiFormats.AMOUNT;
 
     /** Monto con signo opcional, para saldos iniciales que admiten sobregiro. */
-    static final String SIGNED = "^-?[0-9]{1,17}(\\.[0-9]{1,2})?$";
+    static final String SIGNED = ApiFormats.SIGNED_AMOUNT;
 
-    static final String MESSAGE = "debe ser un monto con hasta 2 decimales, por ejemplo 150000.50";
+    static final String MESSAGE = ApiFormats.AMOUNT_MESSAGE;
 
     private Amounts() {
     }

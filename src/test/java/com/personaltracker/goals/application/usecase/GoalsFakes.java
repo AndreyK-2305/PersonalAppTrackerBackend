@@ -1,7 +1,10 @@
 package com.personaltracker.goals.application.usecase;
 
+import com.personaltracker.goals.application.port.out.FinancedGoalRepository;
 import com.personaltracker.goals.application.port.out.GoalOwners;
 import com.personaltracker.goals.application.port.out.SavingsGoalRepository;
+import com.personaltracker.goals.domain.model.FinancedGoal;
+import com.personaltracker.goals.domain.model.FinancedGoalId;
 import com.personaltracker.goals.domain.model.SavingsContribution;
 import com.personaltracker.goals.domain.model.SavingsGoal;
 import com.personaltracker.goals.domain.model.SavingsGoalId;
@@ -46,6 +49,9 @@ final class GoalsFakes {
         final ManageSavingsGoals manage;
         final RecordSavingsContributions contributions;
         final AdjustSavingsRate rate;
+        final FinancedGoals financedGoals = new FinancedGoals();
+        final ManageFinancedGoals financed;
+        final SimulateFinancing simulation;
 
         Module(Instant now) {
             clock = new MutableClock(now);
@@ -54,6 +60,8 @@ final class GoalsFakes {
             manage = new ManageSavingsGoals(goals, reader, calendar, clock);
             contributions = new RecordSavingsContributions(goals, reader, calendar, clock);
             rate = new AdjustSavingsRate(goals, reader, calendar, clock);
+            financed = new ManageFinancedGoals(financedGoals, calendar, clock);
+            simulation = new SimulateFinancing(calendar);
         }
     }
 
@@ -139,6 +147,36 @@ final class GoalsFakes {
         public void deleteRateChangesAfter(SavingsGoalId goalId, UserId owner, LocalDate date) {
             rateChanges.removeIf(change -> change.goalId().equals(goalId) && change.owner().equals(owner)
                     && change.effectiveFrom().isAfter(date));
+        }
+    }
+
+    static final class FinancedGoals implements FinancedGoalRepository {
+
+        final Map<FinancedGoalId, FinancedGoal> stored = new LinkedHashMap<>();
+        int saves;
+
+        @Override
+        public Optional<FinancedGoal> findByIdAndOwner(FinancedGoalId id, UserId owner) {
+            return Optional.ofNullable(stored.get(id)).filter(goal -> goal.owner().equals(owner));
+        }
+
+        @Override
+        public List<FinancedGoal> findAllByOwner(UserId owner) {
+            return stored.values().stream()
+                    .filter(goal -> goal.owner().equals(owner))
+                    .sorted(Comparator.comparing(FinancedGoal::createdAt).reversed())
+                    .toList();
+        }
+
+        @Override
+        public void save(FinancedGoal goal) {
+            saves++;
+            stored.put(goal.id(), goal);
+        }
+
+        @Override
+        public void delete(FinancedGoal goal) {
+            stored.remove(goal.id());
         }
     }
 

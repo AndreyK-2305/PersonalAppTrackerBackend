@@ -80,7 +80,7 @@ src/main/java/com/personaltracker/
 ├── identity/        cuentas, inicio de sesión, perfil, contraseñas; publica @CurrentUser (identity.api)
 ├── finance/         productos, categorías, movimientos y resumen
 ├── capture/         notificaciones bancarias del iPhone: cola, análisis y revisión
-└── goals/           metas de ahorro: abonos, rentabilidad y proyección (sin relación con finance)
+└── goals/           metas de ahorro y metas financiadas con su tabla de amortización (sin relación con finance)
 src/main/resources/
 ├── application.yml, application-local.yml, application-prod.yml
 └── db/migration/    migraciones Flyway: V{n}__{modulo}_{descripcion}.sql

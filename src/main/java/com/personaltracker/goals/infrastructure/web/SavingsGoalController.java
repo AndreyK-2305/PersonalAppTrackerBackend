@@ -11,7 +11,7 @@ import com.personaltracker.goals.domain.model.SavingsPlanKind;
 import com.personaltracker.identity.api.CurrentUser;
 import com.personaltracker.shared.domain.Money;
 import com.personaltracker.shared.domain.UserId;
-import com.personaltracker.shared.domain.finance.AnnualRate;
+import com.personaltracker.shared.infrastructure.web.ApiFormats;
 import com.personaltracker.shared.infrastructure.web.GlobalExceptionHandler.FieldViolation;
 import com.personaltracker.shared.infrastructure.web.RequestValidationException;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -20,10 +20,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.Currency;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -45,12 +43,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/goals/savings")
 class SavingsGoalController {
 
-    static final Currency COP = Currency.getInstance("COP");
-
-    private static final String AMOUNT = "^[0-9]{1,17}(\\.[0-9]{1,2})?$";
-    private static final String AMOUNT_MESSAGE = "debe ser un monto con hasta 2 decimales, por ejemplo 150000.50";
-    private static final String PERCENT = "^[0-9]{1,4}(\\.[0-9]{1,4})?$";
-    private static final String PERCENT_MESSAGE = "debe ser un porcentaje con hasta 4 decimales, por ejemplo 10.5";
+    private static final String AMOUNT = ApiFormats.AMOUNT;
+    private static final String AMOUNT_MESSAGE = ApiFormats.AMOUNT_MESSAGE;
+    private static final String PERCENT = ApiFormats.PERCENT;
+    private static final String PERCENT_MESSAGE = ApiFormats.PERCENT_MESSAGE;
 
     private final ManageSavingsGoals manageGoals;
     private final RecordSavingsContributions contributions;
@@ -109,12 +105,12 @@ class SavingsGoalController {
     @PutMapping("/{id}/rate")
     SavingsGoalResponse adjustRate(
             @CurrentUser UserId owner, @PathVariable UUID id, @Valid @RequestBody RateRequest body) {
-        return SavingsGoalResponse.from(adjustRate.adjust(
-                owner, new SavingsGoalId(id), AnnualRate.ofPercent(new BigDecimal(body.ratePercent()))));
+        return SavingsGoalResponse.from(
+                adjustRate.adjust(owner, new SavingsGoalId(id), GoalAmounts.rate(body.ratePercent())));
     }
 
-    static Money cop(String value) {
-        return new Money(new BigDecimal(value), COP);
+    private static Money cop(String value) {
+        return GoalAmounts.cop(value);
     }
 
     /** {@code plan} decide el campo obligatorio: {@code targetDate} o {@code monthlyAmount}; el otro no aplica. */

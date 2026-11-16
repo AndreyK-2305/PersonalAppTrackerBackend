@@ -6,7 +6,7 @@
 | `identity` | Usuarios, credenciales, sesión y seguridad | `shared`, `messaging` (api) | `identity` | Completo (Etapa 2) |
 | `finance` | Dinero: productos, categorías, movimientos, cuotas, préstamos y dashboard | `shared`, `identity` (api) | `finance` | Completo (Etapa 3) |
 | `capture` | Entrada de notificaciones bancarias: cola, análisis y bandeja de revisión | `shared`, `identity` (api), `finance` (api) | `capture` | Completo (Etapa 4) |
-| `goals` | Metas de ahorro y, después, metas financiadas. No crea movimientos | `shared`, `identity` (api) | `goals` | En curso (Metas, entrega 1) |
+| `goals` | Metas de ahorro y metas financiadas (simulador y plan de pagos). No crea movimientos | `shared`, `identity` (api) | `goals` | En curso (Metas, entrega 2 de 3) |
 | `messaging` | Entrega de correos con Resend (antes `notifications`) | `shared` | `messaging` | Etapa 5 |
 | `reports` | Reportes programados y exportaciones | `shared`, `identity` (api), `finance` (api), `messaging` (api) | `reports` | Etapa 5 |
 | `garage` | Vehículos | `shared`, `finance` (api) | `garage` | Posterior al MVP |
@@ -40,6 +40,8 @@ Contiene solo lo que realmente comparten varios módulos:
 - `domain.finance`: calculadora financiera en `BigDecimal` con 34 dígitos (ADR-0018). La usa `goals` y, en la Etapa 6, `finance`.
   - `AnnualRate`: tasa efectiva anual como fracción `NUMERIC(9,6)`; `monthly()` da la tasa mensual equivalente.
   - `FinancialMath`: raíz n-ésima (Newton; falla si no converge), crecimiento compuesto y redondeo hacia arriba al peso.
+  - `Amortization`: cuota fija exacta (sistema francés) y tabla de amortización, con el interés de cada periodo redondeado al centavo.
+- `infrastructure.web.ApiFormats`: patrones de los montos y porcentajes que viajan como texto. Los usan las validaciones de `finance` y `goals`.
 
 **Riesgo a vigilar:** que `shared` se convierta en un cajón de utilidades. Antes de agregar algo, comprueba que lo usan al menos dos módulos.
 
@@ -164,7 +166,9 @@ Etapa 4, ADR-0017. Depende de `shared`, `identity :: api` y `finance :: api`.
 
 ## goals
 
-Metas del usuario (ADR-0018). Entrega 1: metas de ahorro. No depende de `finance`: los abonos son marcas dentro de la meta.
+Metas del usuario (ADR-0018). Entrega 1: metas de ahorro. Entrega 2: metas financiadas (simulador y tabla de amortización). No depende de `finance`: los abonos son marcas dentro de la meta y una meta financiada no crea deudas.
+
+### Metas de ahorro
 
 - **Dominio:**
   - `SavingsGoal`: nombre, objetivo y plan. `SavingsPlan` es una interfaz sellada (`ByTargetDate`, `ByMonthlyAmount`) y cada plan conoce su `SavingsPlanKind`.
@@ -189,6 +193,21 @@ Metas del usuario (ADR-0018). Entrega 1: metas de ahorro. No depende de `finance
   - API (`SavingsGoalIntegrationTests`, `SavingsGoalApiEdgeCaseTests`);
   - arquitectura del módulo (`GoalsModuleArchitectureTests`).
 - **Auditoría de la entrega 1:** [docs/revisiones/2026-11-16-metas-entrega-1.md](../revisiones/2026-11-16-metas-entrega-1.md).
+
+### Metas financiadas
+
+- **Dominio:**
+  - `FinancedGoal`: nombre y condiciones de la financiación.
+  - `FinancedTerms`: valor del bien, cuota inicial, tasa, plazo, fecha de la primera cuota y cuota real opcional. Valida sus reglas y calcula la cuota recomendada.
+  - `PaymentSchedule`: la tabla de amortización con sus fechas y los totales. Sale completa de `FinancedTerms` con `shared.domain.finance.Amortization` y **no se guarda**.
+  - `InvalidFinancedGoalException`, con un código por regla.
+- **Casos de uso:**
+  - `ManageFinancedGoals`: listar, consultar, crear, editar y borrar. Calcula el plan antes de guardar: si un total no cabe en un monto, la meta no llega a existir.
+  - `SimulateFinancing`: calcula el plan de unas condiciones sin guardar nada (la vista previa del formulario).
+- **Puerto de salida:** `FinancedGoalRepository`, con su adaptador `FinancedGoalPersistenceAdapter` sobre `goals.financed_goals` (V13).
+- **Web:** `FinancedGoalController` en `/api/v1/goals/financed`. El listado trae el resumen; el detalle y la simulación, la tabla completa. `GoalAmounts` convierte los montos y tasas de los dos controladores de Metas.
+- **Pruebas:** `AmortizationTests` (valores calculados aparte e invariantes de la tabla), `FinancedTermsTests`, `ManageFinancedGoalsTests` (con dobles), `FinancedGoalPersistenceAdapterTests` y `FinancedGoalIntegrationTests`.
+- **Entrega 3 (pendiente):** pagos, abonos extraordinarios y ajustes de tasa. Entonces la tabla dependerá también de esos registros.
 
 ## messaging, reports y garage
 

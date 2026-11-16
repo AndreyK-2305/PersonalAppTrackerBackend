@@ -76,6 +76,14 @@ El código, los identificadores y la API están en inglés; la interfaz y la doc
 | Aporte recomendado | `recommendedMonthly` | Valor a apartar cada mes para llegar en la fecha; se redondea hacia arriba al peso y nunca supera lo que falta. |
 | Meta vencida | `overdue` | La fecha objetivo llegó y la meta no está cumplida. |
 | Tasa EA | `AnnualRate` | Tasa efectiva anual. La mensual equivalente es `(1 + EA)^(1/12) − 1`. |
+| Meta financiada | `FinancedGoal` | Compra grande que se piensa pagar a crédito. Es un simulador y plan de pagos, no una deuda de Finanzas. |
+| Condiciones | `FinancedTerms` | Valor del bien, cuota inicial, tasa EA, número de cuotas, fecha de la primera cuota y cuota real opcional. |
+| Monto financiado | `financedAmount` | Valor del bien menos la cuota inicial. |
+| Cuota recomendada (calculada) | `recommendedInstallment` | Cuota fija del sistema francés, redondeada hacia arriba al peso. |
+| Cuota real | `actualInstallment` | Lo que cobra la entidad cada mes. No puede ser menor que la calculada. |
+| Seguros y otros | `extras` | Diferencia entre la cuota real y la calculada. No amortiza capital. |
+| Plan de pagos | `PaymentSchedule` | Tabla de amortización con fechas y totales. Se calcula al consultar. |
+| Tabla de amortización | `Amortization.schedule` | Por cuota: interés sobre el saldo, capital y saldo restante. La última cuota ajusta el residuo. |
 
 ## Garaje (futuro)
 

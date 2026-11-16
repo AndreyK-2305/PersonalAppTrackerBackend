@@ -51,6 +51,13 @@ Las reglas se definieron con el usuario el 2026-11-14 y el 2026-11-15.
 - **Cuota fija** (sistema francés): `P · i ÷ (1 − (1+i)^−n)`. Es la **cuota recomendada**.
 - **Cuota real:** opcional. Si se registra, la diferencia con la recomendada se muestra como **"seguros y otros"**: un valor fijo por cuota que no amortiza capital.
 - **Tabla de amortización:** por cuota, la fecha, la cuota, el interés, el capital, los seguros y otros, y el saldo. El interés es mensual sobre el saldo al inicio del periodo, sin interés diario. La última cuota ajusta el residuo para que el saldo quede en 0.
+- **Reglas de la tabla** (aprobadas por el usuario el 2026-11-16, entrega 2):
+  - **Redondeo:** la cuota recomendada se redondea hacia arriba al peso y el interés de cada cuota, al centavo. Por eso la última cuota es un poco menor y el saldo termina exactamente en 0.
+  - **Cuota real:** no puede ser menor que la recomendada (422): con menos, el crédito no se pagaría en el plazo. Hay que revisar la tasa o el plazo.
+  - **Fecha de la primera cuota:** puede estar en el pasado o en el futuro, hasta 100 años, para registrar un crédito que ya empezó. Las demás cuotas vencen el mismo día de cada mes.
+  - **Plazo:** entre 1 y 600 cuotas. **Cuota inicial:** menor que el valor del bien.
+  - **Casos extremos:** si la cuota no alcanza a cubrir el interés de un periodo, ese periodo no abona capital; si el redondeo salda la deuda antes de tiempo, la tabla termina antes.
+- **La tabla no se guarda:** se calcula al consultar a partir de los datos de la meta. La vista previa del formulario usa el mismo cálculo sin guardar nada.
 - **Pagos:** cada cuota se marca como pagada con fecha y valor. Lo pagado de más es un abono extraordinario.
 - **Abono extraordinario:** va completo a capital. **Por defecto reduce el plazo**; en cada abono se puede elegir reducir la cuota.
 - **Ajuste de tasa:** acción manual para créditos de tasa variable. Registra la nueva tasa EA, que aplica **desde la siguiente cuota**, y recalcula la cuota recomendada sobre el saldo y las cuotas restantes. Si hay cuota real, el usuario la actualiza en el mismo ajuste.

@@ -183,7 +183,11 @@ Rutas con sesión bajo `/api/v1/capture` (ADR-0017). La entrada del atajo está 
 
 ## Metas
 
-Rutas bajo `/api/v1/goals/savings`, todas con sesión; las que modifican datos requieren el token CSRF. Ver [ADR-0018](../decisions/0018-metas.md).
+Rutas bajo `/api/v1/goals`, todas con sesión; las que modifican datos requieren el token CSRF. Ver [ADR-0018](../decisions/0018-metas.md). Hay dos tipos de meta, independientes entre sí: de ahorro (`/savings`) y financiadas (`/financed`).
+
+### Metas de ahorro
+
+Rutas bajo `/api/v1/goals/savings`.
 
 - **Montos:** cadenas decimales en COP. **Tasas:** porcentaje efectivo anual como cadena con hasta 4 decimales (`"10.5"`).
 - **Los abonos son marcas dentro de la meta:** no crean movimientos en Finanzas.
@@ -213,10 +217,44 @@ Campos de la respuesta que dependen del plan:
 
 `ratePercent` solo aparece si la rentabilidad está encendida. `completed` es `true` cuando lo ahorrado llega al objetivo.
 
-Códigos de metas:
+### Metas financiadas
+
+Rutas bajo `/api/v1/goals/financed`. Son un simulador y plan de pagos: no crean deudas ni movimientos en Finanzas. La tabla de amortización no se guarda; se calcula al consultar.
+
+| Método | Ruta | Respuesta |
+|---|---|---|
+| GET | `/` | Metas del usuario, de la más reciente a la más antigua, cada una con el resumen de su plan (`summary`) y sin la tabla |
+| POST | `/` | `{ name, assetValue, downPayment?, ratePercent, installments, firstDueDate, actualInstallment? }` → 201 con `{ goal, schedule }` |
+| GET | `/{id}` | `{ goal, schedule }`: la meta y su tabla de amortización completa |
+| PUT | `/{id}` | Reemplaza el nombre y las condiciones → 200 con `{ goal, schedule }`. La fecha de la primera cuota solo se vuelve a comprobar contra hoy si cambia |
+| DELETE | `/{id}` | 204 |
+| POST | `/simulations` | Las mismas condiciones sin `name` → 200 con `{ currency, summary, schedule }`. No guarda nada: es la vista previa del formulario |
+
+- **Condiciones:**
+  - `assetValue`: valor del bien. `downPayment`: cuota inicial, opcional y menor que el valor.
+  - `ratePercent`: tasa efectiva anual. `installments`: entre 1 y 600 cuotas mensuales.
+  - `firstDueDate`: fecha de la primera cuota, pasada o futura, a menos de 100 años de hoy.
+  - `actualInstallment`: cuota real que cobra la entidad, opcional y no menor que la calculada.
+- **`summary`:**
+  - `financedAmount`: valor del bien menos la cuota inicial.
+  - `recommendedInstallment`: cuota fija calculada, redondeada hacia arriba al peso.
+  - `installmentAmount`: lo que se paga cada mes (la cuota real si se registró).
+  - `extrasPerInstallment` y `totalExtras`: "seguros y otros", la diferencia entre las dos.
+  - `totalInterest`, `totalPaid` (todas las cuotas) y `totalCost` (con la cuota inicial).
+  - `lastDueDate` y `scheduledInstallments` (filas de la tabla).
+- **`schedule`:** por cuota, `number`, `dueDate`, `payment` (interés, capital y seguros y otros), `interest`, `principal`, `extras` y `balance` (saldo después de pagarla). El interés se redondea al centavo y la última cuota ajusta el residuo, así que el saldo termina en `0.00`.
+
+### Códigos de metas
 
 | Estado | `code` | Cuándo |
 |---|---|---|
+| 404 | `goals.financed_goal.not_found` | La meta financiada no existe o es de otro usuario |
+| 422 | `goals.financed_goal.name_invalid` | Nombre vacío o de más de 100 caracteres |
+| 422 | `goals.financed_goal.asset_value_invalid` | El valor del bien no es mayor que cero |
+| 422 | `goals.financed_goal.down_payment_invalid` | La cuota inicial no es menor que el valor del bien |
+| 422 | `goals.financed_goal.installments_invalid` | El número de cuotas no está entre 1 y 600 (un valor fuera de rango en la petición responde antes 400 `validation_error`) |
+| 422 | `goals.financed_goal.first_due_date_invalid` | La primera cuota está a más de 100 años de hoy |
+| 422 | `goals.financed_goal.actual_installment_invalid` | La cuota real es menor que la calculada |
 | 404 | `goals.savings_goal.not_found` | La meta no existe o es de otro usuario |
 | 404 | `goals.contribution.not_found` | El abono no existe, es de otra meta o es de otro usuario |
 | 422 | `goals.savings_goal.name_invalid` | Nombre vacío o de más de 100 caracteres |
@@ -226,7 +264,7 @@ Códigos de metas:
 | 422 | `goals.contribution.amount_invalid` | El abono no es mayor que cero |
 | 422 | `goals.contribution.date_invalid` | La fecha del abono es futura o tiene más de 100 años |
 | 422 | `rate.invalid` | La tasa no está entre 0 % y 1000 % EA |
-| 422 | `money.amount_invalid` | La suma de los abonos ya no cabe en `NUMERIC(19,2)` |
+| 422 | `money.amount_invalid` | La suma de los abonos, o algún total del plan de pagos, ya no cabe en `NUMERIC(19,2)`. No se guarda nada |
 
 ## Finanzas
 
