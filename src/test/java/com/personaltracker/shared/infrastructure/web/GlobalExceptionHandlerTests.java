@@ -26,6 +26,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -84,6 +85,15 @@ class GlobalExceptionHandlerTests {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("conflict"))
                 .andExpect(content().string(not(containsString("duplicate key"))));
+    }
+
+    @Test
+    void concurrentEditsAreConflicts() throws Exception {
+        mvc.perform(get("/probe/concurrent-edit"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("conflict"))
+                .andExpect(jsonPath("$.detail").value(containsString("Otra sesión cambió este registro")))
+                .andExpect(content().string(not(containsString("Row was updated"))));
     }
 
     @Test
@@ -191,6 +201,12 @@ class GlobalExceptionHandlerTests {
         void uniqueViolation() {
             throw new DataIntegrityViolationException("duplicate key",
                     new SQLException("duplicate key value violates unique constraint", "23505"));
+        }
+
+        @GetMapping("/probe/concurrent-edit")
+        void concurrentEdit() {
+            throw new ObjectOptimisticLockingFailureException("Row was updated or deleted by another transaction",
+                    new IllegalStateException("stale"));
         }
 
         @GetMapping("/probe/foreign-key-violation")

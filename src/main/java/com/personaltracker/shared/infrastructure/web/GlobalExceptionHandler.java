@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.MethodParameter;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -78,6 +79,17 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         }
         log.error("Violación de integridad inesperada", ex);
         return ApiProblems.response(HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    /**
+     * Otra petición cambió o borró el mismo registro entre la lectura y la escritura (bloqueo optimista
+     * con {@code @Version}). No se pisa el cambio ajeno: se responde 409 para que el cliente recargue.
+     */
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    ResponseEntity<ProblemDetail> handleConcurrentEdit(OptimisticLockingFailureException ex) {
+        log.info("Operación rechazada por una edición concurrente del mismo registro");
+        return ApiProblems.response(HttpStatus.CONFLICT, "conflict",
+                "Otra sesión cambió este registro. Actualiza la página e intenta de nuevo.");
     }
 
     @ExceptionHandler(AuthenticationException.class)
