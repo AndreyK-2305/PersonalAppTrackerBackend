@@ -48,7 +48,7 @@ Toda respuesta de error usa `Content-Type: application/problem+json`:
 | 401 | `unauthorized` | No hay sesión válida. |
 | 403 | `forbidden` | Hay sesión, pero no hay permiso. |
 | 404 | `not_found` | La ruta no existe. |
-| 409 | `conflict` | Un índice único rechazó la operación, por ejemplo dos peticiones simultáneas con el mismo nombre. El cliente puede recargar y reintentar. |
+| 409 | `conflict` | Un índice único rechazó la operación (por ejemplo, dos peticiones simultáneas con el mismo nombre) u otra petición cambió el mismo registro entre la lectura y la escritura. El cliente puede recargar y reintentar. |
 | 405 | `method_not_allowed` | Método HTTP no soportado. Incluye la cabecera `Allow`. |
 | 415 | `unsupported_media_type` | El `Content-Type` no está soportado. |
 | 422 | `business_rule_violation` | Valor genérico; en la práctica se usa el código específico de la regla. |
@@ -180,6 +180,53 @@ Rutas con sesión bajo `/api/v1/capture` (ADR-0017). La entrada del atajo está 
   - Una notificación, llave o movimiento de otro usuario responde 404.
 - **Borrar un movimiento captado** con `DELETE /api/v1/finance/transactions/{id}` deja su notificación descartada (ADR-0015).
 - **Convertir un movimiento** ("Es mía" o "No es mía") lo borra y registra uno nuevo con otro identificador, porque el tipo de un movimiento no cambia.
+
+## Metas
+
+Rutas bajo `/api/v1/goals/savings`, todas con sesión; las que modifican datos requieren el token CSRF. Ver [ADR-0018](../decisions/0018-metas.md).
+
+- **Montos:** cadenas decimales en COP. **Tasas:** porcentaje efectivo anual como cadena con hasta 4 decimales (`"10.5"`).
+- **Los abonos son marcas dentro de la meta:** no crean movimientos en Finanzas.
+- Cada respuesta trae la meta completa con su proyección calculada para hoy, en la zona horaria del perfil.
+
+| Método | Ruta | Respuesta |
+|---|---|---|
+| GET | `/` | Metas del usuario, de la más reciente a la más antigua |
+| POST | `/` | `{ name, targetAmount, plan, targetDate \| monthlyAmount }` → 201. `plan` es `TARGET_DATE` (exige `targetDate`) o `MONTHLY_AMOUNT` (exige `monthlyAmount`); el campo del otro plan no se envía (400 `validation_error`) |
+| GET | `/{id}` | La meta |
+| PUT | `/{id}` | Reemplaza nombre, objetivo y plan. Una meta vencida puede conservar su fecha; una fecha nueva debe cumplir la regla |
+| DELETE | `/{id}` | 204; borra también sus abonos y su historial de tasas |
+| POST | `/{id}/contributions` | `{ date, amount }` → 201 con la meta actualizada |
+| DELETE | `/{id}/contributions/{contributionId}` | 200 con la meta actualizada |
+| PUT | `/{id}/rate` | `{ ratePercent }` → 200. La tasa rige desde mañana y reemplaza un cambio que aún no rija; `"0"` apaga la rentabilidad |
+
+Campos de la respuesta que dependen del plan:
+
+| Campo | `TARGET_DATE` | `MONTHLY_AMOUNT` |
+|---|---|---|
+| `targetDate` / `monthlyAmount` | `targetDate` | `monthlyAmount` |
+| `monthsRemaining` | Meses completos hasta la fecha (máximo 1.200) | Meses estimados para llegar; ausente si no alcanza |
+| `recommendedMonthlyAmount` | Aporte mensual, redondeado hacia arriba al peso y nunca mayor que lo que falta | Ausente |
+| `estimatedDate` | La fecha objetivo | Fecha estimada; ausente si no alcanza |
+| `reachable` | Siempre `true` | `false` si tardaría más de 100 años |
+| `overdue` | `true` si la fecha llegó sin cumplir la meta | Siempre `false` |
+
+`ratePercent` solo aparece si la rentabilidad está encendida. `completed` es `true` cuando lo ahorrado llega al objetivo.
+
+Códigos de metas:
+
+| Estado | `code` | Cuándo |
+|---|---|---|
+| 404 | `goals.savings_goal.not_found` | La meta no existe o es de otro usuario |
+| 404 | `goals.contribution.not_found` | El abono no existe, es de otra meta o es de otro usuario |
+| 422 | `goals.savings_goal.name_invalid` | Nombre vacío o de más de 100 caracteres |
+| 422 | `goals.savings_goal.target_invalid` | El objetivo no es mayor que cero |
+| 422 | `goals.savings_goal.target_date_invalid` | La fecha objetivo no es posterior a hoy o está a más de 100 años |
+| 422 | `goals.savings_goal.monthly_amount_invalid` | El aporte mensual no es mayor que cero |
+| 422 | `goals.contribution.amount_invalid` | El abono no es mayor que cero |
+| 422 | `goals.contribution.date_invalid` | La fecha del abono es futura o tiene más de 100 años |
+| 422 | `rate.invalid` | La tasa no está entre 0 % y 1000 % EA |
+| 422 | `money.amount_invalid` | La suma de los abonos ya no cabe en `NUMERIC(19,2)` |
 
 ## Finanzas
 

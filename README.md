@@ -77,17 +77,21 @@ Nunca subas `.env` ni secretos al repositorio.
 src/main/java/com/personaltracker/
 ├── PersonalTrackerApplication.java
 ├── shared/          núcleo compartido: UserId, excepciones de dominio, errores, CORS, OpenAPI, reloj
-└── identity/        cuentas, inicio de sesión, perfil, contraseñas; publica @CurrentUser (identity.api)
+├── identity/        cuentas, inicio de sesión, perfil, contraseñas; publica @CurrentUser (identity.api)
+├── finance/         productos, categorías, movimientos y resumen
+├── capture/         notificaciones bancarias del iPhone: cola, análisis y revisión
+└── goals/           metas de ahorro: abonos, rentabilidad y proyección (sin relación con finance)
 src/main/resources/
 ├── application.yml, application-local.yml, application-prod.yml
 └── db/migration/    migraciones Flyway: V{n}__{modulo}_{descripcion}.sql
 src/test/java/com/personaltracker/
-├── architecture/    ModularityTests (Spring Modulith) y HexagonalArchitectureTests (ArchUnit)
+├── architecture/    ModularityTests (Spring Modulith), HexagonalArchitectureTests y GoalsModuleArchitectureTests (ArchUnit)
 └── support/         @IntegrationTest, Testcontainers, BrowserSession (cookies + CSRF) y TestAccounts
 docs/
 ├── architecture/    visión general, módulos y glosario de dominio
 ├── api/             convenciones de la API
-└── decisions/       ADR
+├── decisions/       ADR
+└── revisiones/      auditorías de una entrega, con hallazgos y correcciones
 ```
 
 Cada módulo sigue la estructura `domain/`, `application/` (`usecase/`, `port/out/`, `dto/`), `infrastructure/` (`web/`, `persistence/`, `config/`) y `api/`. Los módulos se crean cuando llega su primer caso de uso real.
@@ -106,6 +110,13 @@ Cada módulo sigue la estructura `domain/`, `application/` (`usecase/`, `port/ou
   - Adaptador de persistencia.
   - Flujos HTTP completos: login y logout con cookie segura, CSRF obligatorio, mismo error ante credenciales inválidas, bloqueo tras 5 intentos, perfil, cambio de contraseña que cierra las demás sesiones, y registro cerrado o abierto.
 
+- **Metas:**
+  - Calculadora financiera y proyección, incluida una simulación mes a mes contra la fórmula cerrada.
+  - Casos de uso con dobles en memoria y reloj controlado.
+  - Adaptador de persistencia y restricciones del esquema contra PostgreSQL real.
+  - API: reglas, casos límite, CSRF y acceso cruzado entre usuarios.
+  - Reglas de arquitectura propias del módulo.
+
 Usa `@IntegrationTest` en toda prueba de integración nueva, para que Spring reutilice el contexto y el contenedor de PostgreSQL entre clases.
 
 `./mvnw verify` también genera los diagramas de módulos en `target/spring-modulith-docs/`.
@@ -118,6 +129,7 @@ Usa `@IntegrationTest` en toda prueba de integración nueva, para que Spring reu
 - [Convenciones de la API](docs/api/conventions.md)
 - [Decisiones de arquitectura (ADR)](docs/decisions/README.md)
 - [Formatos de notificaciones de la captura](docs/capture/formatos-de-notificaciones.md)
+- [Auditoría de la entrega 1 de Metas](docs/revisiones/2026-11-16-metas-entrega-1.md)
 - [Publicación desde el equipo propio con Cloudflare Tunnel](docs/despliegue/equipo-propio.md)
 
 ## Contribución

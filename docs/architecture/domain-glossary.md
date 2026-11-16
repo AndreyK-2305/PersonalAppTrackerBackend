@@ -64,6 +64,19 @@ El código, los identificadores y la API están en inglés; la interfaz y la doc
 |---|---|---|
 | Notificación bancaria | `BankNotification` | Texto recibido del iPhone. Es el origen de un movimiento, no un movimiento. |
 
+## Metas
+
+| Español | Código | Definición |
+|---|---|---|
+| Meta de ahorro | `SavingsGoal` | Objetivo de ahorro para una suma o un bien, con un valor y un plan. |
+| Plan | `SavingsPlan` | Cómo se llega: por fecha (`ByTargetDate`) o por aporte mensual (`ByMonthlyAmount`). |
+| Abono | `SavingsContribution` | Marca de un ahorro hecho, con fecha y valor. No es un movimiento de Finanzas. |
+| Rentabilidad | `SavingsRateChange` / `AnnualRate` | Tasa efectiva anual de donde se ahorra. Rige desde el día siguiente al cambio y solo afecta la proyección. |
+| Proyección | `SavingsProjection` | Estado de la meta en un día: ahorrado, faltante, avance y lo que hay que hacer para cumplirla. |
+| Aporte recomendado | `recommendedMonthly` | Valor a apartar cada mes para llegar en la fecha; se redondea hacia arriba al peso y nunca supera lo que falta. |
+| Meta vencida | `overdue` | La fecha objetivo llegó y la meta no está cumplida. |
+| Tasa EA | `AnnualRate` | Tasa efectiva anual. La mensual equivalente es `(1 + EA)^(1/12) − 1`. |
+
 ## Garaje (futuro)
 
 | Español | Código | Definición |

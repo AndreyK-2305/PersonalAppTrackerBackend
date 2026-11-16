@@ -5,7 +5,8 @@
 | `shared` | Núcleo compartido mínimo | — | — | Creado (Etapa 1) |
 | `identity` | Usuarios, credenciales, sesión y seguridad | `shared`, `messaging` (api) | `identity` | Completo (Etapa 2) |
 | `finance` | Dinero: productos, categorías, movimientos, cuotas, préstamos y dashboard | `shared`, `identity` (api) | `finance` | Completo (Etapa 3) |
-| `capture` | Entrada de notificaciones bancarias: cola, análisis y bandeja de revisión | `shared`, `identity` (api), `finance` (api) | `capture` | En curso (Etapa 4) |
+| `capture` | Entrada de notificaciones bancarias: cola, análisis y bandeja de revisión | `shared`, `identity` (api), `finance` (api) | `capture` | Completo (Etapa 4) |
+| `goals` | Metas de ahorro y, después, metas financiadas. No crea movimientos | `shared`, `identity` (api) | `goals` | En curso (Metas, entrega 1) |
 | `messaging` | Entrega de correos con Resend (antes `notifications`) | `shared` | `messaging` | Etapa 5 |
 | `reports` | Reportes programados y exportaciones | `shared`, `identity` (api), `finance` (api), `messaging` (api) | `reports` | Etapa 5 |
 | `garage` | Vehículos | `shared`, `finance` (api) | `garage` | Posterior al MVP |
@@ -14,7 +15,7 @@ Los nombres y el orden de etapas están en [ADR-0016](../decisions/0016-modulos-
 
 Reglas generales:
 
-- El grafo es acíclico. `finance` no conoce a `capture`, `reports`, `messaging` ni `garage`.
+- El grafo es acíclico. `finance` no conoce a `capture`, `reports`, `messaging`, `goals` ni `garage`.
 - Un módulo solo usa de otro su paquete `api` (`@NamedInterface`). `shared` es un módulo abierto.
 - No hay relaciones JPA entre módulos, solo identificadores. Ningún módulo lee las tablas de otro.
 - Un módulo se crea cuando llega su primer caso de uso real, nunca como placeholder.
@@ -25,7 +26,7 @@ Contiene solo lo que realmente comparten varios módulos:
 
 - `domain`: `DomainException` (responde 422) y `NotFoundException` (responde 404). Los módulos extienden estas clases con su propio `code`.
 - `infrastructure.web`: `GlobalExceptionHandler`, `CorrelationIdFilter` y CORS (`CorsConfig`, `CorsProperties`).
-  - `GlobalExceptionHandler` también traduce `RequestValidationException` y las restricciones de parámetros a 400 `validation_error`, y las violaciones de índice único a 409 `conflict`.
+  - `GlobalExceptionHandler` también traduce `RequestValidationException` y las restricciones de parámetros a 400 `validation_error`, y las violaciones de índice único y las ediciones concurrentes (bloqueo optimista) a 409 `conflict`.
 - `infrastructure.openapi`: metadatos del documento OpenAPI.
 
 - `domain` también incluye:
@@ -35,6 +36,10 @@ Contiene solo lo que realmente comparten varios módulos:
 - `infrastructure.config.ClockConfig` provee el `Clock` en UTC.
 
 - `domain.Money`: monto con moneda y escala 2 (ADR-0006). Rechaza más de 2 decimales o más de 17 dígitos enteros (`money.amount_invalid`). Lo usan `finance` y, más adelante, `capture` y `reports`.
+
+- `domain.finance`: calculadora financiera en `BigDecimal` con 34 dígitos (ADR-0018). La usa `goals` y, en la Etapa 6, `finance`.
+  - `AnnualRate`: tasa efectiva anual como fracción `NUMERIC(9,6)`; `monthly()` da la tasa mensual equivalente.
+  - `FinancialMath`: raíz n-ésima (Newton; falla si no converge), crecimiento compuesto y redondeo hacia arriba al peso.
 
 **Riesgo a vigilar:** que `shared` se convierta en un cajón de utilidades. Antes de agregar algo, comprueba que lo usan al menos dos módulos.
 
@@ -156,6 +161,34 @@ Etapa 4, ADR-0017. Depende de `shared`, `identity :: api` y `finance :: api`.
 - **Pruebas:**
   - `CaptureIntegrationTests`: de punta a punta contra PostgreSQL.
   - `DatosGovExchangeRatesTests`: con `MockRestServiceServer`.
+
+## goals
+
+Metas del usuario (ADR-0018). Entrega 1: metas de ahorro. No depende de `finance`: los abonos son marcas dentro de la meta.
+
+- **Dominio:**
+  - `SavingsGoal`: nombre, objetivo y plan. `SavingsPlan` es una interfaz sellada (`ByTargetDate`, `ByMonthlyAmount`) y cada plan conoce su `SavingsPlanKind`.
+  - `SavingsContribution` (abono) y `SavingsRateChange` (rentabilidad desde una fecha).
+  - `SavingsProjection`: lo ahorrado, lo que falta, el avance y, según el plan, el aporte mensual recomendado o la fecha estimada. Recibe la fecha de hoy como parámetro.
+  - Excepciones con un código por regla: `InvalidSavingsGoalException` e `InvalidContributionException`.
+- **Casos de uso** (lo único público del paquete):
+  - `ManageSavingsGoals`: listar, consultar, crear, editar y borrar.
+  - `RecordSavingsContributions`: marcar y borrar abonos.
+  - `AdjustSavingsRate`: activar, cambiar o apagar la rentabilidad.
+  - Colaboradores no públicos: `GoalCalendar` (qué día es hoy para el usuario) y `SavingsGoalReader` (la meta con sus abonos, tasas y proyección).
+- **Puertos de salida:** `SavingsGoalRepository` (metas, abonos y tasas; todo filtrado por propietario) y `GoalOwners` (zona horaria).
+- **Adaptadores:**
+  - `persistence`: `SavingsGoalPersistenceAdapter` sobre el esquema `goals` (V11 y V12).
+  - `integration`: `IdentityGoalOwnersAdapter`, con `identity :: api`.
+  - `web`: `SavingsGoalController` en `/api/v1/goals/savings`.
+- **Reglas con fecha:** la fecha objetivo va desde mañana hasta 100 años; un abono no puede ser futuro ni tener más de 100 años. "Hoy" es el del perfil del usuario.
+- **Pruebas:**
+  - dominio y simulación mes a mes (`SavingsProjectionSimulationTests`);
+  - casos de uso con dobles (`GoalsFakes`) y reloj controlado;
+  - adaptador de persistencia contra PostgreSQL;
+  - API (`SavingsGoalIntegrationTests`, `SavingsGoalApiEdgeCaseTests`);
+  - arquitectura del módulo (`GoalsModuleArchitectureTests`).
+- **Auditoría de la entrega 1:** [docs/revisiones/2026-11-16-metas-entrega-1.md](../revisiones/2026-11-16-metas-entrega-1.md).
 
 ## messaging, reports y garage
 
