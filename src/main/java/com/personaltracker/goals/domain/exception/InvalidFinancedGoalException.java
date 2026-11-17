@@ -15,7 +15,9 @@ public class InvalidFinancedGoalException extends DomainException {
         DOWN_PAYMENT("goals.financed_goal.down_payment_invalid"),
         INSTALLMENTS("goals.financed_goal.installments_invalid"),
         FIRST_DUE_DATE("goals.financed_goal.first_due_date_invalid"),
-        ACTUAL_INSTALLMENT("goals.financed_goal.actual_installment_invalid");
+        ACTUAL_INSTALLMENT("goals.financed_goal.actual_installment_invalid"),
+        /** Con pagos, abonos o ajustes registrados, las condiciones ya no se pueden cambiar. */
+        TERMS_LOCKED("goals.financed_goal.terms_locked");
 
         private final String code;
 

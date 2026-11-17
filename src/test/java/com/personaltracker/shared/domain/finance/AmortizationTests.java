@@ -174,6 +174,21 @@ class AmortizationTests {
     }
 
     @Test
+    void theNextRowIsTheFirstRowOfTheSchedule() {
+        BigDecimal rate = monthly("18");
+        BigDecimal installment = installment("60000000", "18", 48);
+
+        Row next = Amortization.nextRow(new BigDecimal("60000000"), rate, 48, installment);
+
+        assertThat(next).isEqualTo(schedule("60000000", "18", 48).get(0));
+        // Con una sola cuota pendiente, esa cuota paga todo el saldo.
+        Row last = Amortization.nextRow(new BigDecimal("1697351.79"), rate, 1, installment);
+        assertThat(last.principal()).isEqualByComparingTo("1697351.79");
+        assertThat(last.interest()).isEqualByComparingTo("23573.55");
+        assertThat(last.balance()).isEqualByComparingTo("0");
+    }
+
+    @Test
     void rejectsTermsThatMakeNoSense() {
         BigDecimal rate = new BigDecimal("0.01");
         assertThatThrownBy(() -> Amortization.fixedInstallment(BigDecimal.ZERO, rate, 12))

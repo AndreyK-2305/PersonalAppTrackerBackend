@@ -219,15 +219,20 @@ Campos de la respuesta que dependen del plan:
 
 ### Metas financiadas
 
-Rutas bajo `/api/v1/goals/financed`. Son un simulador y plan de pagos: no crean deudas ni movimientos en Finanzas. La tabla de amortización no se guarda; se calcula al consultar.
+Rutas bajo `/api/v1/goals/financed`. Son un simulador y plan de pagos: no crean deudas ni movimientos en Finanzas. La tabla de amortización no se guarda; se calcula al consultar, repasando en orden los pagos, abonos y ajustes de tasa registrados sobre las condiciones de la meta.
 
 | Método | Ruta | Respuesta |
 |---|---|---|
-| GET | `/` | Metas del usuario, de la más reciente a la más antigua, cada una con el resumen de su plan (`summary`) y sin la tabla |
-| POST | `/` | `{ name, assetValue, downPayment?, ratePercent, installments, firstDueDate, actualInstallment? }` → 201 con `{ goal, schedule }` |
-| GET | `/{id}` | `{ goal, schedule }`: la meta y su tabla de amortización completa |
-| PUT | `/{id}` | Reemplaza el nombre y las condiciones → 200 con `{ goal, schedule }`. La fecha de la primera cuota solo se vuelve a comprobar contra hoy si cambia |
-| DELETE | `/{id}` | 204 |
+| GET | `/` | Metas del usuario, de la más reciente a la más antigua, cada una con el resumen de su plan (`summary`) y el estado de su crédito (`progress`), sin la tabla |
+| POST | `/` | `{ name, assetValue, downPayment?, ratePercent, installments, firstDueDate, actualInstallment? }` → 201 con `{ goal, schedule, records }` |
+| GET | `/{id}` | `{ goal, schedule, records }`: la meta, su tabla de amortización completa y sus registros |
+| PUT | `/{id}` | Reemplaza el nombre y las condiciones → 200. Con registros solo se puede cambiar el nombre (422 `goals.financed_goal.terms_locked`). La fecha de la primera cuota solo se vuelve a comprobar contra hoy si cambia |
+| DELETE | `/{id}` | 204; borra también sus registros |
+| POST | `/{id}/payments` | `{ date, amount, excessMode? }` → 201. Paga la siguiente cuota pendiente; lo que supere su valor es un abono a capital que se aplica con `excessMode` |
+| POST | `/{id}/payments/through` | `{ installmentNumber }` → 201. Marca pagadas todas las cuotas pendientes hasta esa, cada una por su valor y en su fecha de vencimiento (o la de hoy, si aún no vence) |
+| POST | `/{id}/prepayments` | `{ date, amount, mode? }` → 201. Abono extraordinario: va completo a capital |
+| POST | `/{id}/rate-adjustments` | `{ ratePercent, actualInstallment? }` → 201. La tasa rige desde la siguiente cuota pendiente; sin `actualInstallment` se conservan los seguros y otros |
+| DELETE | `/{id}/records/{recordId}` | 200. Deshace un registro; solo se admite el último |
 | POST | `/simulations` | Las mismas condiciones sin `name` → 200 con `{ currency, summary, schedule }`. No guarda nada: es la vista previa del formulario |
 
 - **Condiciones:**
@@ -242,7 +247,18 @@ Rutas bajo `/api/v1/goals/financed`. Son un simulador y plan de pagos: no crean 
   - `extrasPerInstallment` y `totalExtras`: "seguros y otros", la diferencia entre las dos.
   - `totalInterest`, `totalPaid` (todas las cuotas) y `totalCost` (con la cuota inicial).
   - `lastDueDate` y `scheduledInstallments` (filas de la tabla).
-- **`schedule`:** por cuota, `number`, `dueDate`, `payment` (interés, capital y seguros y otros), `interest`, `principal`, `extras` y `balance` (saldo después de pagarla). El interés se redondea al centavo y la última cuota ajusta el residuo, así que el saldo termina en `0.00`.
+- **Las operaciones sobre `/{id}/...`** responden con `{ goal, schedule, records }` ya recalculado.
+- **`mode` y `excessMode`:** `REDUCE_TERM` (por defecto: misma cuota, menos cuotas) o `REDUCE_INSTALLMENT` (mismas cuotas, menor valor).
+- **`summary` es el plan actual:** incluye lo ya pagado y lo que falta, con la cuota y la tasa vigentes. `ratePercent` y `actualInstallment` de la meta son las condiciones originales.
+- **`progress`:**
+  - `status`: `ON_TRACK`, `OVERDUE` (la próxima cuota ya venció) o `PAID_OFF`. Es informativo: no hay mora.
+  - `paidInstallments`, `pendingInstallments`, `balance` y `currentRatePercent`.
+  - `paidInterest`, `pendingInterest`, `originalTotalInterest` e `interestSavings` (plan original menos plan actual; negativo si ahora se paga más, por ejemplo tras subir la tasa).
+  - `paidSoFar`: cuotas pagadas más abonos.
+  - `nextInstallment`: la siguiente cuota pendiente; nulo si el crédito está pagado.
+  - `hasRecords`: con registros, de la meta solo se puede cambiar el nombre.
+- **`schedule`:** por cuota, `number`, `dueDate`, `payment` (interés, capital, seguros y otros y, si se pagó de más, el abono), `interest`, `principal`, `extras`, `extraPrincipal` y `balance` (saldo después de pagarla), más `paid` y, si ya se pagó, `paidOn`. El interés se redondea al centavo y la última cuota ajusta el residuo, así que el saldo termina en `0.00`.
+- **`records`:** del más reciente al más antiguo. Cada uno trae `id`, `kind` (`PAYMENT`, `PREPAYMENT` o `RATE_ADJUSTMENT`), `date` y `undoable` (solo el último), y según el tipo: `amount`, `mode`, `installmentNumber`, `ratePercent` y `actualInstallment`.
 
 ### Códigos de metas
 
@@ -255,6 +271,15 @@ Rutas bajo `/api/v1/goals/financed`. Son un simulador y plan de pagos: no crean 
 | 422 | `goals.financed_goal.installments_invalid` | El número de cuotas no está entre 1 y 600 (un valor fuera de rango en la petición responde antes 400 `validation_error`) |
 | 422 | `goals.financed_goal.first_due_date_invalid` | La primera cuota está a más de 100 años de hoy |
 | 422 | `goals.financed_goal.actual_installment_invalid` | La cuota real es menor que la calculada |
+| 422 | `goals.financed_goal.terms_locked` | Se intentó cambiar las condiciones de una meta con registros |
+| 404 | `goals.financed_record.not_found` | El registro no existe, es de otra meta o es de otro usuario |
+| 422 | `goals.financed_record.payment_amount_invalid` | El pago es menor que la cuota o supera lo que falta por pagar |
+| 422 | `goals.financed_record.prepayment_amount_invalid` | El abono no es mayor que cero o supera el saldo |
+| 422 | `goals.financed_record.date_invalid` | La fecha del pago o del abono es futura o tiene más de 100 años |
+| 422 | `goals.financed_record.actual_installment_invalid` | En un ajuste, la cuota real es menor que la calculada con la nueva tasa |
+| 422 | `goals.financed_record.installment_number_invalid` | La cuota indicada ya está pagada o no existe en el plan |
+| 422 | `goals.financed_record.credit_paid_off` | El crédito ya está pagado y no admite más registros |
+| 422 | `goals.financed_record.not_last` | Se intentó deshacer un registro que no es el último |
 | 404 | `goals.savings_goal.not_found` | La meta no existe o es de otro usuario |
 | 404 | `goals.contribution.not_found` | El abono no existe, es de otra meta o es de otro usuario |
 | 422 | `goals.savings_goal.name_invalid` | Nombre vacío o de más de 100 caracteres |

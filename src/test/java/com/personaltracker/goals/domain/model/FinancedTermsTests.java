@@ -57,7 +57,8 @@ class FinancedTermsTests {
         assertThat(schedule.extrasPerInstallment()).isEqualTo(cop("0"));
         assertThat(schedule.installments()).hasSize(48);
         assertThat(schedule.installments().get(0)).isEqualTo(new Installment(1, FIRST, cop("1720956"),
-                cop("833305.82"), cop("887650.18"), cop("0"), cop("59112349.82")));
+                cop("833305.82"), cop("887650.18"), cop("0"), cop("0"), cop("59112349.82"), null));
+        assertThat(schedule.installments()).noneMatch(Installment::paid);
         assertThat(schedule.totalInterest()).isEqualTo(cop("22605857.34"));
         assertThat(schedule.totalExtras()).isEqualTo(cop("0"));
         assertThat(schedule.totalPaid()).isEqualTo(cop("82605857.34"));

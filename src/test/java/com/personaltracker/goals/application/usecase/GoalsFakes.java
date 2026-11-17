@@ -5,6 +5,7 @@ import com.personaltracker.goals.application.port.out.GoalOwners;
 import com.personaltracker.goals.application.port.out.SavingsGoalRepository;
 import com.personaltracker.goals.domain.model.FinancedGoal;
 import com.personaltracker.goals.domain.model.FinancedGoalId;
+import com.personaltracker.goals.domain.model.FinancedRecord;
 import com.personaltracker.goals.domain.model.SavingsContribution;
 import com.personaltracker.goals.domain.model.SavingsGoal;
 import com.personaltracker.goals.domain.model.SavingsGoalId;
@@ -52,6 +53,9 @@ final class GoalsFakes {
         final FinancedGoals financedGoals = new FinancedGoals();
         final ManageFinancedGoals financed;
         final SimulateFinancing simulation;
+        final RecordCreditPayments creditPayments;
+        final AdjustCreditRate creditRate;
+        final UndoCreditRecord creditUndo;
 
         Module(Instant now) {
             clock = new MutableClock(now);
@@ -60,8 +64,12 @@ final class GoalsFakes {
             manage = new ManageSavingsGoals(goals, reader, calendar, clock);
             contributions = new RecordSavingsContributions(goals, reader, calendar, clock);
             rate = new AdjustSavingsRate(goals, reader, calendar, clock);
-            financed = new ManageFinancedGoals(financedGoals, calendar, clock);
+            FinancedGoalReader financedReader = new FinancedGoalReader(financedGoals);
+            financed = new ManageFinancedGoals(financedGoals, financedReader, calendar, clock);
             simulation = new SimulateFinancing(calendar);
+            creditPayments = new RecordCreditPayments(financedReader, calendar, clock);
+            creditRate = new AdjustCreditRate(financedReader, calendar, clock);
+            creditUndo = new UndoCreditRecord(financedGoals, financedReader, calendar);
         }
     }
 
@@ -153,6 +161,7 @@ final class GoalsFakes {
     static final class FinancedGoals implements FinancedGoalRepository {
 
         final Map<FinancedGoalId, FinancedGoal> stored = new LinkedHashMap<>();
+        final Map<FinancedGoalId, List<FinancedRecord>> records = new HashMap<>();
         int saves;
 
         @Override
@@ -177,6 +186,24 @@ final class GoalsFakes {
         @Override
         public void delete(FinancedGoal goal) {
             stored.remove(goal.id());
+            records.remove(goal.id());
+        }
+
+        @Override
+        public List<FinancedRecord> records(FinancedGoalId goalId, UserId owner) {
+            return findByIdAndOwner(goalId, owner)
+                    .map(goal -> List.copyOf(records.getOrDefault(goalId, List.of())))
+                    .orElse(List.of());
+        }
+
+        @Override
+        public void appendRecords(FinancedGoal goal, List<FinancedRecord> added) {
+            records.computeIfAbsent(goal.id(), id -> new ArrayList<>()).addAll(added);
+        }
+
+        @Override
+        public void deleteRecord(FinancedGoal goal, UUID recordId) {
+            records.getOrDefault(goal.id(), new ArrayList<>()).removeIf(record -> record.id().equals(recordId));
         }
     }
 

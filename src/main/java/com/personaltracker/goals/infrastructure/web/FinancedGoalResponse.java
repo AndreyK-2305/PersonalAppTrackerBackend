@@ -9,11 +9,12 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 /**
- * Meta financiada con el resumen de su plan (ADR-0018). {@code actualInstallment} solo aparece si se
- * registró la cuota real.
+ * Meta financiada con el resumen de su plan actual y el estado de su crédito (ADR-0018).
+ * {@code ratePercent} y {@code actualInstallment} son las condiciones originales; lo vigente tras
+ * abonos y ajustes de tasa está en {@code summary} y {@code progress}.
  */
 @Schema(requiredProperties = {"id", "name", "assetValue", "downPayment", "currency", "ratePercent", "installments",
-        "firstDueDate", "summary", "createdAt", "updatedAt"})
+        "firstDueDate", "summary", "progress", "createdAt", "updatedAt"})
 record FinancedGoalResponse(
         UUID id,
         String name,
@@ -25,6 +26,7 @@ record FinancedGoalResponse(
         LocalDate firstDueDate,
         String actualInstallment,
         PlanSummaryResponse summary,
+        CreditProgressResponse progress,
         Instant createdAt,
         Instant updatedAt) {
 
@@ -42,6 +44,7 @@ record FinancedGoalResponse(
                 terms.firstDueDate(),
                 GoalAmounts.format(terms.actualInstallment()),
                 PlanSummaryResponse.from(view.schedule()),
+                CreditProgressResponse.from(view),
                 goal.createdAt(),
                 goal.updatedAt());
     }

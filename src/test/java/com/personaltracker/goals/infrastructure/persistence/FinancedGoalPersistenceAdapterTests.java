@@ -6,7 +6,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.personaltracker.goals.application.port.out.FinancedGoalRepository;
 import com.personaltracker.goals.domain.model.FinancedGoal;
 import com.personaltracker.goals.domain.model.FinancedGoalId;
+import com.personaltracker.goals.domain.model.FinancedRecord;
+import com.personaltracker.goals.domain.model.FinancedRecord.InstallmentPayment;
+import com.personaltracker.goals.domain.model.FinancedRecord.Prepayment;
+import com.personaltracker.goals.domain.model.FinancedRecord.RateAdjustment;
 import com.personaltracker.goals.domain.model.FinancedTerms;
+import com.personaltracker.goals.domain.model.PrepaymentMode;
 import com.personaltracker.identity.application.port.out.PasswordHasher;
 import com.personaltracker.identity.application.port.out.UserRepository;
 import com.personaltracker.shared.domain.Money;
@@ -18,6 +23,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Currency;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -145,6 +151,117 @@ class FinancedGoalPersistenceAdapterTests {
 
         assertThat(repository.findByIdAndOwner(goal.id(), owner)).isEmpty();
         assertThat(repository.findByIdAndOwner(other.id(), owner)).isPresent();
+    }
+
+    private static FinancedRecord payment(String amount) {
+        return new InstallmentPayment(UUID.randomUUID(), FIRST, cop(amount), PrepaymentMode.REDUCE_INSTALLMENT, NOW);
+    }
+
+    private static FinancedRecord prepayment(String amount) {
+        return new Prepayment(UUID.randomUUID(), FIRST.plusDays(3), cop(amount), PrepaymentMode.REDUCE_TERM, NOW);
+    }
+
+    private static FinancedRecord adjustment(String actualInstallment) {
+        return new RateAdjustment(UUID.randomUUID(), FIRST.plusDays(5),
+                AnnualRate.ofPercent(new BigDecimal("20.1234")),
+                actualInstallment == null ? null : cop(actualInstallment), NOW.plusSeconds(9));
+    }
+
+    @Test
+    void theRecordsSurviveTheRoundTripInTheOrderTheyWereAdded() {
+        FinancedGoal goal = saved(owner, "Carro", terms("0", null), NOW);
+        FinancedRecord first = payment("2100000.50");
+        FinancedRecord second = prepayment("5000000");
+        FinancedRecord third = adjustment("2300000.25");
+        FinancedRecord fourth = adjustment(null);
+
+        repository.appendRecords(goal, List.of(first, second));
+        repository.appendRecords(goal, List.of(third, fourth));
+
+        assertThat(repository.records(goal.id(), owner)).containsExactly(first, second, third, fourth);
+        assertThat(jdbc.queryForList("select sequence from goals.financed_goal_records where goal_id = ?"
+                + " order by sequence", Integer.class, goal.id().value())).containsExactly(1, 2, 3, 4);
+    }
+
+    @Test
+    void theRecordsBelongToTheirGoalAndOwner() {
+        FinancedGoal goal = saved(owner, "Carro", terms("0", null), NOW);
+        FinancedGoal other = saved(owner, "Casa", terms("0", null), NOW);
+        FinancedRecord ofGoal = payment("2100000");
+        FinancedRecord ofOther = payment("2200000");
+        repository.appendRecords(goal, List.of(ofGoal));
+        repository.appendRecords(other, List.of(ofOther));
+
+        assertThat(repository.records(goal.id(), owner)).containsExactly(ofGoal);
+        assertThat(repository.records(other.id(), owner)).containsExactly(ofOther);
+        assertThat(repository.records(goal.id(), stranger)).isEmpty();
+
+        // Un registro no se borra a través de otra meta.
+        repository.deleteRecord(other, ofGoal.id());
+        assertThat(repository.records(goal.id(), owner)).containsExactly(ofGoal);
+    }
+
+    @Test
+    void deletingTheLastRecordLetsTheNextOneReuseItsPlace() {
+        FinancedGoal goal = saved(owner, "Carro", terms("0", null), NOW);
+        FinancedRecord first = payment("2100000");
+        FinancedRecord second = prepayment("1000");
+        repository.appendRecords(goal, List.of(first, second));
+
+        repository.deleteRecord(goal, second.id());
+        FinancedRecord replacement = adjustment(null);
+        repository.appendRecords(goal, List.of(replacement));
+
+        assertThat(repository.records(goal.id(), owner)).containsExactly(first, replacement);
+    }
+
+    @Test
+    void deletingAGoalCascadesToItsRecords() {
+        FinancedGoal goal = saved(owner, "Carro", terms("0", null), NOW);
+        repository.appendRecords(goal, List.of(payment("2100000"), prepayment("1000")));
+
+        repository.delete(goal);
+
+        assertThat(jdbc.queryForObject("select count(*) from goals.financed_goal_records where goal_id = ?",
+                Integer.class, goal.id().value())).isZero();
+    }
+
+    @Test
+    void theSchemaRejectsRecordsThatBreakTheRules() {
+        FinancedGoal goal = saved(owner, "Carro", terms("0", null), NOW);
+        String insert = "insert into goals.financed_goal_records (id, goal_id, user_id, sequence, kind, record_date,"
+                + " currency, amount, prepayment_mode, annual_rate, actual_installment, created_at)"
+                + " values (?, ?, ?, ?, ?, ?, 'COP', ?, ?, ?, ?, now())";
+        UUID goalId = goal.id().value();
+        UUID user = owner.value();
+        BigDecimal amount = new BigDecimal("1000");
+        BigDecimal rate = new BigDecimal("0.2");
+        Object[][] invalid = {
+            // Un pago sin valor, en cero o sin modo (los nulos deben fallar, no darse por buenos).
+            {2, "PAYMENT", null, "REDUCE_TERM", null, null},
+            {2, "PAYMENT", BigDecimal.ZERO, "REDUCE_TERM", null, null},
+            {2, "PAYMENT", amount, null, null, null},
+            {2, "PAYMENT", amount, "REDUCE_TERM", rate, null},
+            {2, "PREPAYMENT", amount, "OTHER", null, null},
+            // Un ajuste sin tasa, con tasa fuera de rango, con valor o con cuota real en cero.
+            {2, "RATE_ADJUSTMENT", null, null, null, null},
+            {2, "RATE_ADJUSTMENT", null, null, new BigDecimal("10.000001"), null},
+            {2, "RATE_ADJUSTMENT", amount, null, rate, null},
+            {2, "RATE_ADJUSTMENT", null, null, rate, BigDecimal.ZERO},
+            {2, "OTHER", amount, "REDUCE_TERM", null, null},
+            {0, "PAYMENT", amount, "REDUCE_TERM", null, null},
+            // El orden es único por meta.
+            {1, "PAYMENT", amount, "REDUCE_TERM", null, null},
+        };
+
+        jdbc.update(insert, UUID.randomUUID(), goalId, user, 1, "PAYMENT", FIRST, amount, "REDUCE_TERM", null, null);
+        for (Object[] row : invalid) {
+            assertThatThrownBy(() -> jdbc.update(insert, UUID.randomUUID(), goalId, user, row[0], row[1], FIRST,
+                    row[2], row[3], row[4], row[5])).as("%s %s", row[1], row[0])
+                    .isInstanceOf(DataIntegrityViolationException.class);
+        }
+        assertThatThrownBy(() -> jdbc.update(insert, UUID.randomUUID(), UUID.randomUUID(), user, 1, "PAYMENT", FIRST,
+                amount, "REDUCE_TERM", null, null)).isInstanceOf(DataIntegrityViolationException.class);
     }
 
     private void assertRejected(Object asset, Object down, String currency, Object rate, Object installments,

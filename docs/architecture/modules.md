@@ -6,7 +6,7 @@
 | `identity` | Usuarios, credenciales, sesión y seguridad | `shared`, `messaging` (api) | `identity` | Completo (Etapa 2) |
 | `finance` | Dinero: productos, categorías, movimientos, cuotas, préstamos y dashboard | `shared`, `identity` (api) | `finance` | Completo (Etapa 3) |
 | `capture` | Entrada de notificaciones bancarias: cola, análisis y bandeja de revisión | `shared`, `identity` (api), `finance` (api) | `capture` | Completo (Etapa 4) |
-| `goals` | Metas de ahorro y metas financiadas (simulador y plan de pagos). No crea movimientos | `shared`, `identity` (api) | `goals` | En curso (Metas, entrega 2 de 3) |
+| `goals` | Metas de ahorro y metas financiadas (simulador y plan de pagos con pagos, abonos y ajustes de tasa). No crea movimientos | `shared`, `identity` (api) | `goals` | Completo (Metas, 3 entregas) |
 | `messaging` | Entrega de correos con Resend (antes `notifications`) | `shared` | `messaging` | Etapa 5 |
 | `reports` | Reportes programados y exportaciones | `shared`, `identity` (api), `finance` (api), `messaging` (api) | `reports` | Etapa 5 |
 | `garage` | Vehículos | `shared`, `finance` (api) | `garage` | Posterior al MVP |
@@ -40,7 +40,7 @@ Contiene solo lo que realmente comparten varios módulos:
 - `domain.finance`: calculadora financiera en `BigDecimal` con 34 dígitos (ADR-0018). La usa `goals` y, en la Etapa 6, `finance`.
   - `AnnualRate`: tasa efectiva anual como fracción `NUMERIC(9,6)`; `monthly()` da la tasa mensual equivalente.
   - `FinancialMath`: raíz n-ésima (Newton; falla si no converge), crecimiento compuesto y redondeo hacia arriba al peso.
-  - `Amortization`: cuota fija exacta (sistema francés) y tabla de amortización, con el interés de cada periodo redondeado al centavo.
+  - `Amortization`: cuota fija exacta (sistema francés), tabla de amortización y la siguiente cuota de un crédito en curso (`nextRow`), con el interés de cada periodo redondeado al centavo.
 - `infrastructure.web.ApiFormats`: patrones de los montos y porcentajes que viajan como texto. Los usan las validaciones de `finance` y `goals`.
 
 **Riesgo a vigilar:** que `shared` se convierta en un cajón de utilidades. Antes de agregar algo, comprueba que lo usan al menos dos módulos.
@@ -166,7 +166,7 @@ Etapa 4, ADR-0017. Depende de `shared`, `identity :: api` y `finance :: api`.
 
 ## goals
 
-Metas del usuario (ADR-0018). Entrega 1: metas de ahorro. Entrega 2: metas financiadas (simulador y tabla de amortización). No depende de `finance`: los abonos son marcas dentro de la meta y una meta financiada no crea deudas.
+Metas del usuario (ADR-0018). Entrega 1: metas de ahorro. Entrega 2: metas financiadas (simulador y tabla de amortización). Entrega 3: pagos, abonos extraordinarios y ajustes de tasa. No depende de `finance`: los abonos son marcas dentro de la meta y una meta financiada no crea deudas.
 
 ### Metas de ahorro
 
@@ -199,15 +199,20 @@ Metas del usuario (ADR-0018). Entrega 1: metas de ahorro. Entrega 2: metas finan
 - **Dominio:**
   - `FinancedGoal`: nombre y condiciones de la financiación.
   - `FinancedTerms`: valor del bien, cuota inicial, tasa, plazo, fecha de la primera cuota y cuota real opcional. Valida sus reglas y calcula la cuota recomendada.
-  - `PaymentSchedule`: la tabla de amortización con sus fechas y los totales. Sale completa de `FinancedTerms` con `shared.domain.finance.Amortization` y **no se guarda**.
-  - `InvalidFinancedGoalException`, con un código por regla.
+  - `FinancedRecord` (interfaz sellada): `InstallmentPayment`, `Prepayment` y `RateAdjustment`. Lo que pasa en el crédito después de crearlo.
+  - `CreditPlan`: el estado del crédito. Repasa los registros en orden sobre las condiciones originales, llevando el saldo, la tasa y la cuota, y ahí valida cada regla. Es un cálculo puro: las mismas condiciones y registros dan siempre el mismo plan.
+  - `PaymentSchedule`: la tabla de amortización, con las cuotas pagadas y las pendientes, y sus totales. La produce `CreditPlan` con `shared.domain.finance.Amortization` y **no se guarda**.
+  - `InvalidFinancedGoalException` e `InvalidFinancedRecordException`, con un código por regla.
 - **Casos de uso:**
-  - `ManageFinancedGoals`: listar, consultar, crear, editar y borrar. Calcula el plan antes de guardar: si un total no cabe en un monto, la meta no llega a existir.
+  - `ManageFinancedGoals`: listar, consultar, crear, editar y borrar. Calcula el plan antes de guardar: si un total no cabe en un monto, la meta no llega a existir. Con registros, solo deja cambiar el nombre.
   - `SimulateFinancing`: calcula el plan de unas condiciones sin guardar nada (la vista previa del formulario).
-- **Puerto de salida:** `FinancedGoalRepository`, con su adaptador `FinancedGoalPersistenceAdapter` sobre `goals.financed_goals` (V13).
-- **Web:** `FinancedGoalController` en `/api/v1/goals/financed`. El listado trae el resumen; el detalle y la simulación, la tabla completa. `GoalAmounts` convierte los montos y tasas de los dos controladores de Metas.
-- **Pruebas:** `AmortizationTests` (valores calculados aparte e invariantes de la tabla), `FinancedTermsTests`, `ManageFinancedGoalsTests` (con dobles), `FinancedGoalPersistenceAdapterTests` y `FinancedGoalIntegrationTests`.
-- **Entrega 3 (pendiente):** pagos, abonos extraordinarios y ajustes de tasa. Entonces la tabla dependerá también de esos registros.
+  - `RecordCreditPayments`: pagar la siguiente cuota, marcar pagadas varias cuotas de una vez y abonar a capital.
+  - `AdjustCreditRate`: ajuste de tasa desde la siguiente cuota.
+  - `UndoCreditRecord`: deshacer el último registro.
+  - Colaborador no público: `FinancedGoalReader`, que lee la meta con sus registros y, al agregar registros, repasa el plan completo antes de guardarlos: un registro inválido nunca llega a la base.
+- **Puerto de salida:** `FinancedGoalRepository` (metas y sus registros), con su adaptador `FinancedGoalPersistenceAdapter` sobre `goals.financed_goals` (V13) y `goals.financed_goal_records` (V14). El orden de los registros es único por meta: dos altas simultáneas chocan y la API responde 409.
+- **Web:** `FinancedGoalController` en `/api/v1/goals/financed` y `CreditActivityController` en `/api/v1/goals/financed/{id}` (pagos, abonos, ajustes y deshacer). El listado trae el resumen y el estado; el detalle y la simulación, la tabla completa. `GoalAmounts` convierte los montos y tasas de los dos controladores de Metas.
+- **Pruebas:** `AmortizationTests` (valores calculados aparte e invariantes de la tabla), `FinancedTermsTests`, `CreditPlanTests` (el plan recalculado contra valores calculados aparte), `ManageFinancedGoalsTests` y `CreditActivityTests` (con dobles), `FinancedGoalPersistenceAdapterTests`, `FinancedGoalIntegrationTests` y `CreditActivityIntegrationTests`.
 
 ## messaging, reports y garage
 

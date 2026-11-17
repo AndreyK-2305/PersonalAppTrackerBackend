@@ -84,6 +84,12 @@ El código, los identificadores y la API están en inglés; la interfaz y la doc
 | Seguros y otros | `extras` | Diferencia entre la cuota real y la calculada. No amortiza capital. |
 | Plan de pagos | `PaymentSchedule` | Tabla de amortización con fechas y totales. Se calcula al consultar. |
 | Tabla de amortización | `Amortization.schedule` | Por cuota: interés sobre el saldo, capital y saldo restante. La última cuota ajusta el residuo. |
+| Registro | `FinancedRecord` | Algo que pasó en el crédito: un pago, un abono o un ajuste de tasa. Se guardan en orden y solo se deshace el último. |
+| Pago de cuota | `InstallmentPayment` | Marca la siguiente cuota como pagada. No puede ser menor que la cuota; lo que sobre es un abono. |
+| Abono extraordinario | `Prepayment` / `extraPrincipal` | Pago que va completo a capital. Reduce el plazo (por defecto) o la cuota. |
+| Ajuste de tasa | `RateAdjustment` | Nueva tasa EA desde la siguiente cuota; recalcula la cuota sobre el saldo y las cuotas que faltan. |
+| Estado del crédito | `CreditPlan` / `CreditStatus` | El plan actual tras repasar los registros: al día, con una cuota vencida o pagado. Informativo: no hay mora. |
+| Ahorro en intereses | `interestSavings` | Intereses del plan original menos los del plan actual. Negativo si ahora se paga más. |
 
 ## Garaje (futuro)
 

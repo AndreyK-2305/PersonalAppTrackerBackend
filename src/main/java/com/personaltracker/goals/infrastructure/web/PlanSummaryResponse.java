@@ -5,13 +5,15 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDate;
 
 /**
- * Resumen del plan de pagos (ADR-0018).
+ * Resumen del plan de pagos actual (ADR-0018): incluye lo ya pagado y lo que falta, con la cuota y la
+ * tasa vigentes.
  *
  * <ul>
  *   <li>{@code recommendedInstallment}: cuota fija calculada, redondeada hacia arriba al peso.</li>
  *   <li>{@code installmentAmount}: lo que se paga cada mes, la cuota real si se registró.</li>
  *   <li>{@code extrasPerInstallment}: "seguros y otros", la diferencia entre las dos.</li>
- *   <li>{@code totalPaid}: suma de todas las cuotas; {@code totalCost} le agrega la cuota inicial.</li>
+ *   <li>{@code totalPaid}: suma de todas las cuotas y abonos; {@code totalCost} le agrega la cuota
+ *       inicial.</li>
  *   <li>{@code scheduledInstallments}: filas de la tabla; normalmente, el número de cuotas pedido.</li>
  * </ul>
  */

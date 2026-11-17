@@ -59,6 +59,15 @@ Las reglas se definieron con el usuario el 2026-11-14 y el 2026-11-15.
   - **Casos extremos:** si la cuota no alcanza a cubrir el interés de un periodo, ese periodo no abona capital; si el redondeo salda la deuda antes de tiempo, la tabla termina antes.
 - **La tabla no se guarda:** se calcula al consultar a partir de los datos de la meta. La vista previa del formulario usa el mismo cálculo sin guardar nada.
 - **Pagos:** cada cuota se marca como pagada con fecha y valor. Lo pagado de más es un abono extraordinario.
+- **Reglas de los registros** (aprobadas por el usuario el 2026-11-16, entrega 3):
+  - **Pago menor que la cuota:** se rechaza. Es un simulador: no lleva mora ni saldos vencidos.
+  - **Orden:** las cuotas se pagan en orden y solo se puede deshacer el último registro (pago, abono o ajuste). Así el plan se recalcula siempre igual.
+  - **Fecha del pago:** es informativa. Pagar tarde no genera intereses; el interés sigue siendo mensual sobre el saldo. No puede ser futura ni de hace más de 100 años.
+  - **Varias cuotas a la vez:** "marcar pagadas hasta la cuota N" registra un pago por cada cuota pendiente hasta esa, con su valor programado y su fecha de vencimiento (o la de hoy, si aún no vence).
+  - **Seguros y otros:** se mantienen fijos cuando cambia la cuota, por un abono que la reduce o por un ajuste de tasa, salvo que en el ajuste se registre la nueva cuota real.
+  - **Condiciones bloqueadas:** con registros, de la meta solo se puede cambiar el nombre. La tasa se cambia con un ajuste de tasa; lo demás exige deshacer los registros.
+  - **Diferencia negativa:** si la tasa sube, el "ahorro" frente al plan original es negativo y se muestra tal cual.
+- **Cómo se recalcula:** los registros se guardan en orden y el plan se obtiene repasándolos sobre las condiciones originales. Un abono que reduce el plazo conserva la cuota; uno que reduce la cuota conserva las cuotas que faltan. Un ajuste de tasa conserva las cuotas que faltan y recalcula la cuota sobre el saldo.
 - **Abono extraordinario:** va completo a capital. **Por defecto reduce el plazo**; en cada abono se puede elegir reducir la cuota.
 - **Ajuste de tasa:** acción manual para créditos de tasa variable. Registra la nueva tasa EA, que aplica **desde la siguiente cuota**, y recalcula la cuota recomendada sobre el saldo y las cuotas restantes. Si hay cuota real, el usuario la actualiza en el mismo ajuste.
 - **Ahorro en intereses:** intereses del plan original − (intereses ya pagados + intereses pendientes según el plan actual).

@@ -56,16 +56,36 @@ public final class Amortization {
         BigDecimal balance = cents(principal, "El monto financiado");
         List<Row> rows = new ArrayList<>(periods);
         for (int number = 1; number <= periods && balance.signum() > 0; number++) {
-            BigDecimal interest = balance.multiply(periodRate, FinancialMath.CONTEXT)
-                    .setScale(SCALE, RoundingMode.HALF_EVEN);
-            BigDecimal capital = payment.subtract(interest).max(BigDecimal.ZERO.setScale(SCALE));
-            if (number == periods || capital.compareTo(balance) > 0) {
-                capital = balance;
-            }
-            balance = balance.subtract(capital);
-            rows.add(new Row(number, interest.add(capital), interest, capital, balance));
+            Row row = row(number, balance, periodRate, number == periods, payment);
+            balance = row.balance();
+            rows.add(row);
         }
         return List.copyOf(rows);
+    }
+
+    /**
+     * La siguiente cuota de un crédito en curso: la primera fila de {@link #schedule} para ese saldo.
+     * Sirve para registrar los pagos uno a uno sin recalcular toda la tabla.
+     *
+     * @param remainingPeriods cuotas que faltan, incluida esta; si es 1, la cuota paga todo el saldo
+     */
+    public static Row nextRow(BigDecimal balance, BigDecimal periodRate, int remainingPeriods, BigDecimal installment) {
+        requireTerms(balance, periodRate, remainingPeriods);
+        Objects.requireNonNull(installment, "installment");
+        if (installment.signum() <= 0) {
+            throw new IllegalArgumentException("La cuota debe ser positiva: " + installment);
+        }
+        return row(1, cents(balance, "El saldo"), periodRate, remainingPeriods == 1, cents(installment, "La cuota"));
+    }
+
+    private static Row row(int number, BigDecimal balance, BigDecimal periodRate, boolean last, BigDecimal payment) {
+        BigDecimal interest = balance.multiply(periodRate, FinancialMath.CONTEXT)
+                .setScale(SCALE, RoundingMode.HALF_EVEN);
+        BigDecimal capital = payment.subtract(interest).max(BigDecimal.ZERO.setScale(SCALE));
+        if (last || capital.compareTo(balance) > 0) {
+            capital = balance;
+        }
+        return new Row(number, interest.add(capital), interest, capital, balance.subtract(capital));
     }
 
     private static void requireTerms(BigDecimal principal, BigDecimal periodRate, int periods) {
